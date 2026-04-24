@@ -3,11 +3,13 @@
 > 이 문서 하나로 작업을 재개할 수 있도록 정리됨. 새 세션에서 Claude에게 `D:\gdrive_esc\GTI\Ghez-School\song-homeschool-app\PROJECT.md` 를 읽어달라고 하면 컨텍스트가 그대로 복원됨.
 
 **최종 업데이트**: 2026-04-24
-**현재 상태**: Phase A + A.5 + B (배포·Firebase) 완료. Phase B-게임화(아바타·몬스터·랭킹) 대기
+**현재 상태**: Phase A + A.5 + B1(배포·Firebase) 완료. Phase B2-게임화(아바타·몬스터·랭킹) 대기
 
 **라이브 URL**: https://seongsongaframe-debug.github.io/song-homeschool-app/
 **GitHub 리포**: https://github.com/seongsongaframe-debug/song-homeschool-app
 **Firebase 프로젝트**: `song-homeschool` (Spark 무료 티어, asia-northeast3)
+
+> **일상 작업 로그는 `WORKLOG.md` 참조.** 이 파일은 아키텍처·설계 레퍼런스 (변경 빈도 낮음).
 
 ---
 
