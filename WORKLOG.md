@@ -2,7 +2,7 @@
 
 ## 현재 상태
 - **단계**: Phase A + A.5 + B1(배포·Firebase) 완료. 실제 숙제 3건 이관 완료.
-- **마지막 작업**: 2026-04-24 · Firestore undefined 거부로 '다시 보내기' 조용히 실패하던 버그 수정 + 아이 "취소" 버튼 명시화
+- **마지막 작업**: 2026-04-24 · 세인(👦)·혜인(👧) 이모지 성별 반영
 - **다음 할 일**: 실사용 피드백 수집 → Phase B2(아바타·몬스터·랭킹) 기획 보정
 
 ## 📌 핵심 관리 정보 (Reference)
@@ -90,6 +90,7 @@ service cloud.firestore {
 
 | 날짜 | 작업 | 산출물 / 커밋 |
 |------|------|--------|
+| 2026-04-24 | **학생 이모지 성별 반영** — 세인(남) 👧→👦, 혜인(여) 🧒→👧. seed.ts 수정 + Firestore `config/students` 즉시 업데이트. | `scripts/update-student-emojis.mjs` · `src/data/seed.ts` |
 | 2026-04-24 | **Firestore undefined 필드 거부 수정 + 아이 취소 UI** — `rejectQuest`/`verifyQuest` 가 `{completedAt: undefined}` 같은 객체를 쓰면 Firestore 가 throw 해서 '다시 보내기' 가 조용히 실패하던 문제. `initializeFirestore(app, { ignoreUndefinedProperties: true })` 로 전역 해결. 추가로 아이 화면 완료 카드에 "↺ 취소" 버튼 명시화, 보호자 검증 후엔 🔒 락 아이콘 + 취소 불가. | `src/firebase.ts` · `src/pages/QuestBoard.tsx` |
 | 2026-04-24 | **하드 리프레시 빈 화면 수정** — `/manage` 등 하위 경로에서 Ctrl+Shift+R 누르면 빈 화면. 404 → `?p=/xxx` 리다이렉트 복원 시 `history.replaceState` 가 basename 없는 절대경로로 덮어써 React Router 매칭 실패. `window.location.pathname` 에서 basename 을 추출해 앞에 붙이도록 수정. | `17d4c7c` · `index.html` |
 | 2026-04-24 | **다시 거부 버그 수정** — 보호자 관리의 "다시" 버튼이 `window.prompt()` 사용 → PWA·일부 브라우저에서 차단되어 거부 처리 안 되던 문제. 커스텀 모달(textarea + 취소/다시 보내기 버튼)로 교체. | `5eff7d3` · `src/pages/Manage.tsx` |

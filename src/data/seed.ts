@@ -12,7 +12,7 @@ export const seedStudents: Student[] = [
     grade: 4,
     birthYear: 2017,
     color: "#3b82f6",
-    emoji: "👧",
+    emoji: "👦",
   },
   {
     id: "hyein",
@@ -20,7 +20,7 @@ export const seedStudents: Student[] = [
     grade: 2,
     birthYear: 2019,
     color: "#ec4899",
-    emoji: "🧒",
+    emoji: "👧",
   },
 ];
 
