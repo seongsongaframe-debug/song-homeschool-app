@@ -2,7 +2,7 @@
 
 ## 현재 상태
 - **단계**: Phase A + A.5 + B1(배포·Firebase) 완료. 실제 숙제 3건 이관 완료.
-- **마지막 작업**: 2026-04-24 · 보호자 "다시" 거부 버튼 버그 수정 (prompt → 커스텀 모달)
+- **마지막 작업**: 2026-04-24 · 하드 리프레시 빈 화면 버그 수정 (404 복원 스크립트의 basename 유실)
 - **다음 할 일**: 아이들 PWA 설치 후 실사용 피드백 수집 → Phase B2(아바타·몬스터·랭킹) 기획 보정
 
 ## 링크
@@ -15,6 +15,7 @@
 
 | 날짜 | 작업 | 산출물 / 커밋 |
 |------|------|--------|
+| 2026-04-24 | **하드 리프레시 빈 화면 수정** — `/manage` 등 하위 경로에서 Ctrl+Shift+R 누르면 빈 화면. 404 → `?p=/xxx` 리다이렉트 복원 시 `history.replaceState` 가 basename 없는 절대경로로 덮어써 React Router 매칭 실패. `window.location.pathname` 에서 basename 을 추출해 앞에 붙이도록 수정. | `17d4c7c` · `index.html` |
 | 2026-04-24 | **다시 거부 버그 수정** — 보호자 관리의 "다시" 버튼이 `window.prompt()` 사용 → PWA·일부 브라우저에서 차단되어 거부 처리 안 되던 문제. 커스텀 모달(textarea + 취소/다시 보내기 버튼)로 교체. | `5eff7d3` · `src/pages/Manage.tsx` |
 | 2026-04-24 | **due_date 분리** — `date`(오늘 표시용) ≠ `due_date`(학원 마감일) 로 필드 분리. QuestCard·Manage·ParentQuests에 마감일 배지 추가. 붙여넣기 파서의 파싱된 날짜는 자동으로 due_date에 매핑. | `5d5c298` · `src/types.ts` · `src/pages/{QuestBoard,ParentQuests,Manage}.tsx` |
 | 2026-04-24 | **숙제 배포 3건** — 세인 4/20(영어학원 5개), 혜인 4/21(파닉스 4 + 브릭스리딩 2), 세인 4/22(능률보카 2 + 영문학당 3). 총 16건. 모두 보호자 확인 후 포인트 지급 모드. | `scripts/deploy-homework.mjs`, `scripts/deploy-homework-batch.mjs` |
