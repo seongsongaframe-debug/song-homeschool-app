@@ -17,6 +17,8 @@
         } catch (e) {}
       })();
       // 404.html 리다이렉트 복원 (GitHub Pages SPA)
+      // 하드 리프레시 시 `/song-homeschool-app/xxx` → 404 → `/song-homeschool-app/?p=/xxx` 로 돌아옴.
+      // 여기서 basename 을 유지한 채로 원래 경로 복원해야 React Router 가 매칭 가능.
       (function () {
         var q = window.location.search;
         if (q && q.indexOf("?p=/") === 0) {
@@ -30,7 +32,9 @@
               search = "?" + decoded[i].slice(2);
             }
           }
-          window.history.replaceState(null, "", path + search + window.location.hash);
+          // 현재 pathname 에서 trailing slash 를 제거한 것이 basename (예: /song-homeschool-app)
+          var base = window.location.pathname.replace(/\/$/, "");
+          window.history.replaceState(null, "", base + path + search + window.location.hash);
         }
       })();
     </script>
