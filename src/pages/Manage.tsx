@@ -77,6 +77,8 @@ export default function Manage() {
   const approved = purchases.filter((p) => p.status === "approved");
 
   const [verifyQueue, setVerifyQueue] = useState<Quest[]>([]);
+  const [rejectTarget, setRejectTarget] = useState<Quest | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const loadVerify = useCallback(async () => {
     const all: Quest[] = [];
     for (const s of students) {
@@ -142,9 +144,7 @@ export default function Manage() {
     return true;
   }
 
-  async function rejectQuest(q: Quest) {
-    const reason = prompt("다시 해야 하는 이유를 알려주세요 (아이가 보게 됩니다)");
-    if (reason === null) return;
+  async function rejectQuest(q: Quest, reason: string) {
     const next: Quest = {
       ...q,
       status: "pending",
@@ -274,7 +274,10 @@ export default function Manage() {
                     </button>
                     <button
                       className="btn-ghost text-sm"
-                      onClick={() => rejectQuest(q)}
+                      onClick={() => {
+                        setRejectTarget(q);
+                        setRejectReason("");
+                      }}
                     >
                       다시
                     </button>
@@ -429,6 +432,47 @@ export default function Manage() {
           전체 데이터 초기화
         </button>
       </section>
+
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 bg-stone-950/70 backdrop-blur flex items-center justify-center p-4">
+          <div className="card max-w-md w-full">
+            <h3 className="font-bold text-lg mb-2">다시 해야 할 이유</h3>
+            <p className="text-sm text-stone-500 dark:text-stone-400 mb-3 truncate">
+              {rejectTarget.title}
+            </p>
+            <textarea
+              className="input min-h-[80px]"
+              placeholder="예: 영상이 잘 안 들려요. 다시 녹화해주세요."
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-2 mt-3">
+              <button
+                className="btn-ghost flex-1"
+                onClick={() => {
+                  setRejectTarget(null);
+                  setRejectReason("");
+                }}
+              >
+                취소
+              </button>
+              <button
+                className="btn-primary flex-1"
+                onClick={async () => {
+                  const target = rejectTarget;
+                  const reason = rejectReason;
+                  setRejectTarget(null);
+                  setRejectReason("");
+                  await rejectQuest(target, reason);
+                }}
+              >
+                다시 보내기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
