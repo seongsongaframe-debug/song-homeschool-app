@@ -297,10 +297,13 @@ function QuestCard({
   const done = quest.status === "done";
   const hasSubs = !!quest.subtasks && quest.subtasks.length > 0;
   const awaitingVerify = done && quest.requires_verification && !quest.verified;
+  const verified = done && quest.verified;
   const rejected = !!quest.rejectedReason;
+  const locked = verified; // 보호자 검증 후엔 아이가 임의로 취소 불가
 
   const handleClick = (e: React.MouseEvent) => {
     if (hasSubs) return;
+    if (locked) return;
     onToggleMain(quest, e);
   };
 
@@ -308,7 +311,7 @@ function QuestCard({
     <div
       className={`card transition ${
         done ? "" : "hover:shadow-md"
-      } ${hasSubs ? "" : "cursor-pointer"}`}
+      } ${hasSubs || locked ? "" : "cursor-pointer"}`}
       onClick={handleClick}
     >
       <div className="flex items-center gap-3">
@@ -367,7 +370,7 @@ function QuestCard({
             </div>
           )}
         </div>
-        <div className="text-right flex-shrink-0">
+        <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
           <div className="font-bold text-brand-600 dark:text-brand-400">
             +{quest.points}p
           </div>
@@ -375,6 +378,19 @@ function QuestCard({
             <div className="text-[10px] text-amber-600 dark:text-amber-400">
               확인 후 지급
             </div>
+          )}
+          {verified && <div className="text-xs">🔒</div>}
+          {done && !locked && !hasSubs && (
+            <button
+              className="text-xs text-stone-500 dark:text-stone-400 underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleMain(quest, e);
+              }}
+              aria-label="취소"
+            >
+              ↺ 취소
+            </button>
           )}
         </div>
       </div>
@@ -384,11 +400,17 @@ function QuestCard({
           {quest.subtasks!.map((s) => (
             <button
               key={s.id}
+              disabled={locked}
               onClick={(e) => {
                 e.stopPropagation();
+                if (locked) return;
                 onToggleSubtask(quest, s.id, e);
               }}
-              className="flex items-center gap-2 w-full text-left py-1 hover:bg-stone-50 dark:hover:bg-stone-800 rounded px-1"
+              className={`flex items-center gap-2 w-full text-left py-1 rounded px-1 ${
+                locked
+                  ? "cursor-not-allowed"
+                  : "hover:bg-stone-50 dark:hover:bg-stone-800"
+              }`}
             >
               <div
                 className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition ${

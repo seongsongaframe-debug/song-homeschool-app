@@ -2,19 +2,95 @@
 
 ## 현재 상태
 - **단계**: Phase A + A.5 + B1(배포·Firebase) 완료. 실제 숙제 3건 이관 완료.
-- **마지막 작업**: 2026-04-24 · 하드 리프레시 빈 화면 버그 수정 (404 복원 스크립트의 basename 유실)
-- **다음 할 일**: 아이들 PWA 설치 후 실사용 피드백 수집 → Phase B2(아바타·몬스터·랭킹) 기획 보정
+- **마지막 작업**: 2026-04-24 · Firestore undefined 거부로 '다시 보내기' 조용히 실패하던 버그 수정 + 아이 "취소" 버튼 명시화
+- **다음 할 일**: 실사용 피드백 수집 → Phase B2(아바타·몬스터·랭킹) 기획 보정
 
-## 링크
-- **라이브**: https://seongsongaframe-debug.github.io/song-homeschool-app/
-- **리포**: https://github.com/seongsongaframe-debug/song-homeschool-app
-- **Firebase**: https://console.firebase.google.com/project/song-homeschool
-- **Actions**: https://github.com/seongsongaframe-debug/song-homeschool-app/actions
+## 📌 핵심 관리 정보 (Reference)
+
+### 접속·관리 URL
+| 용도 | URL |
+|---|---|
+| 🎯 **앱 라이브** | https://seongsongaframe-debug.github.io/song-homeschool-app/ |
+| 📦 GitHub 리포 | https://github.com/seongsongaframe-debug/song-homeschool-app |
+| 🔄 배포 현황 (Actions) | https://github.com/seongsongaframe-debug/song-homeschool-app/actions |
+| 🔥 Firebase 콘솔 | https://console.firebase.google.com/project/song-homeschool |
+| 🗂️ Firestore 데이터 | https://console.firebase.google.com/project/song-homeschool/firestore |
+| 🛡️ Firestore 규칙 | https://console.firebase.google.com/project/song-homeschool/firestore/rules |
+| 🔐 Authentication | https://console.firebase.google.com/project/song-homeschool/authentication/providers |
+| ⚙️ GitHub Pages 설정 | https://github.com/seongsongaframe-debug/song-homeschool-app/settings/pages |
+
+### 로컬 경로
+| 용도 | 경로 |
+|---|---|
+| 프로젝트 루트 | `D:\gdrive_esc\GTI\Ghez-School\song-homeschool-app\` |
+| 소스 | `D:\gdrive_esc\GTI\Ghez-School\song-homeschool-app\src\` |
+| 스크립트 | `D:\gdrive_esc\GTI\Ghez-School\song-homeschool-app\scripts\` |
+| 작업 재개 문서 | `D:\gdrive_esc\GTI\Ghez-School\song-homeschool-app\PROJECT.md` |
+| 작업 로그 (이 파일) | `D:\gdrive_esc\GTI\Ghez-School\song-homeschool-app\WORKLOG.md` |
+| Claude 메모리 | `C:\Users\a\.claude\projects\D--gdrive-esc-GTI\memory\project_homeschool_app.md` |
+
+### 계정·환경
+| 항목 | 값 |
+|---|---|
+| GitHub 사용자 | `seongsongaframe-debug` |
+| git 작성자 | `seongsong-debug` <`seongsong.aframe@gmail.com`> |
+| Firebase 프로젝트 ID | `song-homeschool` |
+| Firebase 요금제 | Spark (무료) |
+| Firestore 리전 | `asia-northeast3` (서울) |
+| Firebase 인증 | Anonymous (익명 로그인) |
+| 앱 내 가족 ID | `song` (Firestore `families/song/kv` 하위) |
+| PWA 설치 가능 | Yes — 태블릿 홈화면 추가 |
+| 기본 진입 모드 | 아이 모드 (PIN 입력 시 보호자 전환) |
+
+### Firestore 데이터 구조
+```
+families/
+  └── song/
+        └── kv/
+              ├── config__students        # 학생 목록
+              ├── config__subjects        # 과목 목록
+              ├── config__materials       # 교재 목록
+              ├── config__assignments     # 배정
+              ├── config__rewards         # 보상 목록
+              ├── auth__pinHash           # PIN SHA-256 해시
+              ├── quests__{sid}__{date}__{qid}   # 개별 퀘스트
+              ├── quest_templates__{sid}  # 보호자 저장 템플릿
+              ├── points__{sid}__ledger   # 포인트 원장
+              ├── purchases__{pid}        # 보상 구매 요청
+              ├── badges_earned__{sid}    # 획득 배지
+              └── reports__{date}         # 일일 요약 저장본
+```
+
+### Firestore 보안 규칙 (권장)
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /families/{familyId}/kv/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+⚠️ 테스트 모드로 생성된 상태면 2026-05-24경 만료. 위 규칙으로 교체 필요.
+
+### 자주 쓰는 스크립트
+| 스크립트 | 용도 |
+|---|---|
+| `scripts/deploy-homework.mjs` | 텍스트 붙여넣기 방식으로 퀘스트 자동 배포 (파서 기반) |
+| `scripts/deploy-homework-batch.mjs` | 수동 구성 배포 (여러 아이·날짜 한번에) |
+| `scripts/migrate-to-today.mjs` | 과거 배포 퀘스트를 오늘로 이관 + due_date 설정 |
+| `scripts/fix-sein-merged.mjs` | 특정 이상 퀘스트 분리 (일회성) |
+
+실행: `cd D:\gdrive_esc\GTI\Ghez-School\song-homeschool-app && node scripts/<파일>.mjs`
+
+---
 
 ## 최근 작업 이력
 
 | 날짜 | 작업 | 산출물 / 커밋 |
 |------|------|--------|
+| 2026-04-24 | **Firestore undefined 필드 거부 수정 + 아이 취소 UI** — `rejectQuest`/`verifyQuest` 가 `{completedAt: undefined}` 같은 객체를 쓰면 Firestore 가 throw 해서 '다시 보내기' 가 조용히 실패하던 문제. `initializeFirestore(app, { ignoreUndefinedProperties: true })` 로 전역 해결. 추가로 아이 화면 완료 카드에 "↺ 취소" 버튼 명시화, 보호자 검증 후엔 🔒 락 아이콘 + 취소 불가. | `src/firebase.ts` · `src/pages/QuestBoard.tsx` |
 | 2026-04-24 | **하드 리프레시 빈 화면 수정** — `/manage` 등 하위 경로에서 Ctrl+Shift+R 누르면 빈 화면. 404 → `?p=/xxx` 리다이렉트 복원 시 `history.replaceState` 가 basename 없는 절대경로로 덮어써 React Router 매칭 실패. `window.location.pathname` 에서 basename 을 추출해 앞에 붙이도록 수정. | `17d4c7c` · `index.html` |
 | 2026-04-24 | **다시 거부 버그 수정** — 보호자 관리의 "다시" 버튼이 `window.prompt()` 사용 → PWA·일부 브라우저에서 차단되어 거부 처리 안 되던 문제. 커스텀 모달(textarea + 취소/다시 보내기 버튼)로 교체. | `5eff7d3` · `src/pages/Manage.tsx` |
 | 2026-04-24 | **due_date 분리** — `date`(오늘 표시용) ≠ `due_date`(학원 마감일) 로 필드 분리. QuestCard·Manage·ParentQuests에 마감일 배지 추가. 붙여넣기 파서의 파싱된 날짜는 자동으로 due_date에 매핑. | `5d5c298` · `src/types.ts` · `src/pages/{QuestBoard,ParentQuests,Manage}.tsx` |
