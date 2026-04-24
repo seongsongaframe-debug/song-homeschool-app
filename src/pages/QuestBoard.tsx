@@ -337,6 +337,14 @@ function QuestCard({
               {quest.unit}
             </span>
             <span>{DIFF_STARS[quest.difficulty]}</span>
+            {quest.due_date && (
+              <span
+                className="chip"
+                style={{ backgroundColor: "#e0e7ff", color: "#3730a3" }}
+              >
+                📅 마감 {quest.due_date.slice(5).replace("-", ".")}
+              </span>
+            )}
             {awaitingVerify && (
               <span className="chip" style={{ backgroundColor: "#fef3c7", color: "#92400e" }}>
                 보호자 확인 대기

@@ -191,7 +191,8 @@ export interface Subtask {
 export interface Quest {
   id: string;
   student_id: string;
-  date: string;
+  date: string; // 오늘 보드에 보일 날짜 (배포일)
+  due_date?: string; // 실제 학원 마감일 (정보 표시용)
   title: string;
   subject_id?: string;
   material_id?: string;

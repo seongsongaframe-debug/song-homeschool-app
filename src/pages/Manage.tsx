@@ -245,7 +245,10 @@ export default function Manage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{q.title}</div>
                       <div className="text-xs text-stone-500 dark:text-stone-400">
-                        {s?.emoji} {s?.name} · {q.date} · {q.target}
+                        {s?.emoji} {s?.name} · {q.date}
+                        {q.due_date && ` (마감 ${q.due_date.slice(5).replace("-", ".")})`}
+                        {" · "}
+                        {q.target}
                         {q.unit} · +{q.points}p
                       </div>
                       {q.note && (

@@ -23,6 +23,7 @@ interface DraftItem {
   difficulty: Difficulty;
   points: number;
   note?: string;
+  due_date?: string;
   subtasks?: Subtask[];
   requires_verification?: boolean;
   existing?: Quest;
@@ -39,6 +40,7 @@ function fromQuest(q: Quest): DraftItem {
     difficulty: q.difficulty,
     points: q.points,
     note: q.note,
+    due_date: q.due_date,
     subtasks: q.subtasks,
     requires_verification: q.requires_verification,
     existing: q,
@@ -149,6 +151,7 @@ export default function ParentQuests() {
         id: d.id,
         student_id: studentId,
         date,
+        due_date: d.due_date,
         title: d.title.trim() || "(제목 없음)",
         subject_id: d.subject_id,
         material_id: d.material_id,
@@ -210,7 +213,7 @@ export default function ParentQuests() {
   }
 
   function importParsed(parsed: ReturnType<typeof parseHomework>) {
-    if (parsed.date) setDate(parsed.date);
+    // 파싱된 날짜는 "마감일"로 쓰고, 배포일(date)은 현재 선택된 날짜 유지.
     const imported: DraftItem[] = parsed.quests.map((p) => ({
       id: p.id,
       title: p.title,
@@ -219,6 +222,7 @@ export default function ParentQuests() {
       difficulty: p.difficulty,
       points: p.points,
       note: p.note,
+      due_date: parsed.date,
       subtasks: p.subtasks.length > 0 ? p.subtasks : undefined,
       requires_verification: true,
     }));
@@ -419,18 +423,33 @@ export default function ParentQuests() {
                 </div>
               </div>
 
-              <div className="mt-2">
-                <label className="text-xs text-stone-500 dark:text-stone-400">
-                  부연 설명 (선택)
-                </label>
-                <input
-                  className="input"
-                  placeholder="예: 따라읽으면서 쓰기 / 뜻 필수"
-                  value={d.note ?? ""}
-                  onChange={(e) =>
-                    update(d.id, { note: e.target.value || undefined })
-                  }
-                />
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-stone-500 dark:text-stone-400">
+                    부연 설명 (선택)
+                  </label>
+                  <input
+                    className="input"
+                    placeholder="예: 따라읽으면서 쓰기 / 뜻 필수"
+                    value={d.note ?? ""}
+                    onChange={(e) =>
+                      update(d.id, { note: e.target.value || undefined })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-stone-500 dark:text-stone-400">
+                    학원 마감일 (선택)
+                  </label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={d.due_date ?? ""}
+                    onChange={(e) =>
+                      update(d.id, { due_date: e.target.value || undefined })
+                    }
+                  />
+                </div>
               </div>
 
               <SubtaskEditor
