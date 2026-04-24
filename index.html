@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="./icon.svg" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#f97316" />
+    <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>송홈스쿨</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("songhs::theme") || "system";
+          var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+      // 404.html 리다이렉트 복원 (GitHub Pages SPA)
+      (function () {
+        var q = window.location.search;
+        if (q && q.indexOf("?p=/") === 0) {
+          var decoded = q.slice(3).split("&").map(function (s) {
+            return s.replace(/~and~/g, "&");
+          });
+          var path = decoded[0];
+          var search = "";
+          for (var i = 1; i < decoded.length; i++) {
+            if (decoded[i].indexOf("q=") === 0) {
+              search = "?" + decoded[i].slice(2);
+            }
+          }
+          window.history.replaceState(null, "", path + search + window.location.hash);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

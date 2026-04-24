@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>송홈스쿨</title>
+    <script>
+      // GitHub Pages SPA 라우팅 트릭: 404 페이지에서 원래 경로를 ?p= 쿼리로 바꿔 루트로 리다이렉트.
+      var seg = 1; // repo 이름 깊이
+      var l = window.location;
+      l.replace(
+        l.protocol + "//" + l.hostname + (l.port ? ":" + l.port : "") +
+        l.pathname.split("/").slice(0, 1 + seg).join("/") + "/?p=/" +
+        l.pathname.slice(1).split("/").slice(seg).join("/").replace(/&/g, "~and~") +
+        (l.search ? "&q=" + l.search.slice(1).replace(/&/g, "~and~") : "") +
+        l.hash
+      );
+    </script>
+  </head>
+  <body></body>
+</html>

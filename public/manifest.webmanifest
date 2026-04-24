@@ -1,0 +1,14 @@
+{
+  "name": "송홈스쿨",
+  "short_name": "송홈스쿨",
+  "description": "송세인·송혜인 홈스쿨 관리 앱",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafaf9",
+  "theme_color": "#f97316",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
