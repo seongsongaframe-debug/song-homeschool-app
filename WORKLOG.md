@@ -1,9 +1,9 @@
 # 송홈스쿨관리앱 — 작업로그
 
 ## 현재 상태
-- **단계**: Phase A + A.5 + B1(배포·Firebase) 완료. 실제 숙제 3건 이관 완료.
-- **마지막 작업**: 2026-04-24 · 세인(👦)·혜인(👧) 이모지 성별 반영
-- **다음 할 일**: 실사용 피드백 수집 → Phase B2(아바타·몬스터·랭킹) 기획 보정
+- **단계**: Quest 모델 v2 (assigned_date + due_date 분리) 적용 완료. 빌드 통과.
+- **마지막 작업**: 2026-04-25 · Quest `date` → `assigned_date` + `due_date` 리팩토링. 배포일 지나도 done 될 때까지 화면에 계속 보이도록 4-버킷 분류(overdue/dueToday/upcoming/done) 적용.
+- **다음 할 일**: GitHub push → 라이브 배포 → 첫 접속 시 자동 마이그레이션 동작 검증
 
 ## 📌 핵심 관리 정보 (Reference)
 
@@ -90,6 +90,7 @@ service cloud.firestore {
 
 | 날짜 | 작업 | 산출물 / 커밋 |
 |------|------|--------|
+| 2026-04-25 | **Quest 모델 v2 (배포일 ≠ 마감일, 마감 전까지 계속 노출)** — 기존 `Quest.date` 제거, `assigned_date`(배포일) + `due_date`(마감일) 두 필드로 분리. Storage 경로도 `quests/{sid}/{qid}` 로 평탄화. 새 헬퍼 `quest-eval.ts` 의 `classifyQuests` 로 4-버킷(overdue/dueToday/upcoming/done) 분류. QuestBoard·ParentQuests·Manage 모두 새 모델로 마이그레이션. 기존 데이터는 `migrate-quests.ts` 가 첫 로드 시 자동 변환. Perfect day 평가도 due_date 기준으로 변경. 홈 PC ↔ 사무실 PC 분리 배포 구조 메모리에 기록. | `src/types.ts` · `src/storage/index.ts` · `src/store/{DataContext,useQuests}.ts` · `src/lib/{migrate-quests,quest-eval,homework-parser}.ts` · `src/pages/{QuestBoard,ParentQuests,Manage}.tsx` |
 | 2026-04-24 | **학생 이모지 성별 반영** — 세인(남) 👧→👦, 혜인(여) 🧒→👧. seed.ts 수정 + Firestore `config/students` 즉시 업데이트. | `scripts/update-student-emojis.mjs` · `src/data/seed.ts` |
 | 2026-04-24 | **Firestore undefined 필드 거부 수정 + 아이 취소 UI** — `rejectQuest`/`verifyQuest` 가 `{completedAt: undefined}` 같은 객체를 쓰면 Firestore 가 throw 해서 '다시 보내기' 가 조용히 실패하던 문제. `initializeFirestore(app, { ignoreUndefinedProperties: true })` 로 전역 해결. 추가로 아이 화면 완료 카드에 "↺ 취소" 버튼 명시화, 보호자 검증 후엔 🔒 락 아이콘 + 취소 불가. | `src/firebase.ts` · `src/pages/QuestBoard.tsx` |
 | 2026-04-24 | **하드 리프레시 빈 화면 수정** — `/manage` 등 하위 경로에서 Ctrl+Shift+R 누르면 빈 화면. 404 → `?p=/xxx` 리다이렉트 복원 시 `history.replaceState` 가 basename 없는 절대경로로 덮어써 React Router 매칭 실패. `window.location.pathname` 에서 basename 을 추출해 앞에 붙이도록 수정. | `17d4c7c` · `index.html` |

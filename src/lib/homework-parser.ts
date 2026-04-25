@@ -161,13 +161,15 @@ function extractTargetUnit(q: ParsedQuest) {
 export function materializeQuests(
   parsed: ParsedQuest[],
   studentId: string,
-  date: string,
+  assignedDate: string,
+  dueDate: string,
   requiresVerification: boolean
 ): Quest[] {
   return parsed.map((p) => ({
     id: p.id,
     student_id: studentId,
-    date,
+    assigned_date: assignedDate,
+    due_date: dueDate,
     title: p.title,
     target: p.target,
     unit: p.unit,

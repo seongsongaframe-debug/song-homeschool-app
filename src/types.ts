@@ -191,8 +191,8 @@ export interface Subtask {
 export interface Quest {
   id: string;
   student_id: string;
-  date: string; // 오늘 보드에 보일 날짜 (배포일)
-  due_date?: string; // 실제 학원 마감일 (정보 표시용)
+  assigned_date: string; // 보호자가 퀘스트를 배포한 날 (생성일)
+  due_date: string; // 학원 등 외부 기관의 실제 마감일. 분류·정렬 기준.
   title: string;
   subject_id?: string;
   material_id?: string;
@@ -215,7 +215,15 @@ export interface QuestTemplate {
   id: string;
   name: string;
   student_id: string;
-  items: Omit<Quest, "id" | "student_id" | "date" | "status" | "completedAt">[];
+  items: Omit<
+    Quest,
+    | "id"
+    | "student_id"
+    | "assigned_date"
+    | "due_date"
+    | "status"
+    | "completedAt"
+  >[];
 }
 
 export type LedgerReason =

@@ -8,6 +8,7 @@ import {
 } from "react";
 import { storage, KEYS } from "../storage";
 import { bootstrapIfEmpty, resetAll } from "../data/bootstrap";
+import { migrateQuestsIfNeeded } from "../lib/migrate-quests";
 import type {
   AssignmentsByStudent,
   Material,
@@ -45,6 +46,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const load = useCallback(async () => {
     await bootstrapIfEmpty();
+    await migrateQuestsIfNeeded();
     const [students, subjects, materials, assignments] = await Promise.all([
       storage.read<Student[]>(KEYS.students),
       storage.read<Subject[]>(KEYS.subjects),

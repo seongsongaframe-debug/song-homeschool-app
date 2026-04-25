@@ -27,11 +27,11 @@ export const KEYS = {
   // 게임화
   pinHash: "auth/pinHash",
   authState: "auth/state",
-  quest: (studentId: string, date: string, questId: string) =>
-    `quests/${studentId}/${date}/${questId}`,
-  questsByDay: (studentId: string, date: string) =>
-    `quests/${studentId}/${date}/`,
+  quest: (studentId: string, questId: string) =>
+    `quests/${studentId}/${questId}`,
+  questsAll: (studentId: string) => `quests/${studentId}/`,
   questTemplates: (studentId: string) => `quest_templates/${studentId}`,
+  questMigrationFlag: "_quest_migration_v2",
   pointLedger: (studentId: string) => `points/${studentId}/ledger`,
   rewards: "config/rewards",
   purchase: (id: string) => `purchases/${id}`,

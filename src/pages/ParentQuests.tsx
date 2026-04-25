@@ -79,12 +79,14 @@ export default function ParentQuests() {
 
   useEffect(() => {
     if (!studentId) return;
+    // date = "이 마감일(due_date) 그룹" 의미.
+    // 학생의 모든 퀘스트 중 해당 due_date 인 것만 편집 대상으로 로드.
     (async () => {
-      const keys = await storage.list(KEYS.questsByDay(studentId, date));
+      const keys = await storage.list(KEYS.questsAll(studentId));
       const items: Quest[] = [];
       for (const k of keys) {
         const q = await storage.read<Quest>(k);
-        if (q) items.push(q);
+        if (q && q.due_date === date) items.push(q);
       }
       items.sort((a, b) => a.id.localeCompare(b.id));
       setDrafts(items.map(fromQuest));
@@ -137,11 +139,12 @@ export default function ParentQuests() {
 
   async function distribute() {
     setSaving(true);
-    const existingKeys = await storage.list(KEYS.questsByDay(studentId, date));
+    // 동일 due_date 그룹의 기존 퀘스트 중 drafts 에 없는 것은 삭제 (다른 due_date 의 것은 보존).
+    const allKeys = await storage.list(KEYS.questsAll(studentId));
     const currentIds = new Set(drafts.map((d) => d.id));
-    for (const k of existingKeys) {
+    for (const k of allKeys) {
       const q = await storage.read<Quest>(k);
-      if (q && !currentIds.has(q.id)) {
+      if (q && q.due_date === date && !currentIds.has(q.id)) {
         await storage.remove(k);
       }
     }
@@ -150,8 +153,8 @@ export default function ParentQuests() {
       const q: Quest = {
         id: d.id,
         student_id: studentId,
-        date,
-        due_date: d.due_date,
+        assigned_date: d.existing?.assigned_date ?? todayISO(),
+        due_date: d.due_date ?? date,
         title: d.title.trim() || "(제목 없음)",
         subject_id: d.subject_id,
         material_id: d.material_id,
@@ -166,7 +169,7 @@ export default function ParentQuests() {
         requires_verification: d.requires_verification,
         verified: d.existing?.verified ?? false,
       };
-      await storage.write(KEYS.quest(studentId, date, q.id), q);
+      await storage.write(KEYS.quest(studentId, q.id), q);
     }
     setSaving(false);
   }
@@ -236,9 +239,9 @@ export default function ParentQuests() {
     <div className="max-w-4xl mx-auto p-4">
       <header className="mb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">오늘 과제 배포 (보호자)</h1>
+          <h1 className="text-2xl font-bold">과제 배포 (보호자)</h1>
           <p className="text-stone-500 dark:text-stone-400">
-            {fmtKDate(date)} · 총 {drafts.length}개 · 최대 {totalPoints}p
+            마감일: {fmtKDate(date)} · 총 {drafts.length}개 · 최대 {totalPoints}p
           </p>
         </div>
         <button

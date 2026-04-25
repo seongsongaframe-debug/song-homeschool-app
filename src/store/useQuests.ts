@@ -2,23 +2,26 @@ import { useCallback, useEffect, useState } from "react";
 import { storage, KEYS } from "../storage";
 import type { Quest } from "../types";
 
-export function useQuests(studentId: string, date: string) {
+export function useQuests(studentId: string) {
   const [quests, setQuests] = useState<Quest[]>([]);
 
   const load = useCallback(async () => {
-    if (!studentId || !date) {
+    if (!studentId) {
       setQuests([]);
       return;
     }
-    const keys = await storage.list(KEYS.questsByDay(studentId, date));
+    const keys = await storage.list(KEYS.questsAll(studentId));
     const items: Quest[] = [];
     for (const k of keys) {
       const q = await storage.read<Quest>(k);
       if (q) items.push(q);
     }
-    items.sort((a, b) => a.id.localeCompare(b.id));
+    items.sort((a, b) => {
+      if (a.due_date !== b.due_date) return a.due_date.localeCompare(b.due_date);
+      return a.id.localeCompare(b.id);
+    });
     setQuests(items);
-  }, [studentId, date]);
+  }, [studentId]);
 
   useEffect(() => {
     load();
@@ -26,7 +29,7 @@ export function useQuests(studentId: string, date: string) {
 
   const save = useCallback(
     async (q: Quest) => {
-      await storage.write(KEYS.quest(q.student_id, q.date, q.id), q);
+      await storage.write(KEYS.quest(q.student_id, q.id), q);
       await load();
     },
     [load]
@@ -34,7 +37,7 @@ export function useQuests(studentId: string, date: string) {
 
   const remove = useCallback(
     async (q: Quest) => {
-      await storage.remove(KEYS.quest(q.student_id, q.date, q.id));
+      await storage.remove(KEYS.quest(q.student_id, q.id));
       await load();
     },
     [load]
@@ -43,7 +46,7 @@ export function useQuests(studentId: string, date: string) {
   const saveBatch = useCallback(
     async (list: Quest[]) => {
       for (const q of list) {
-        await storage.write(KEYS.quest(q.student_id, q.date, q.id), q);
+        await storage.write(KEYS.quest(q.student_id, q.id), q);
       }
       await load();
     },

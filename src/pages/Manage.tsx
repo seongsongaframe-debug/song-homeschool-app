@@ -3,6 +3,8 @@ import { storage, KEYS } from "../storage";
 import { useData } from "../store/DataContext";
 import { useRewards, usePurchases } from "../store/useRewards";
 import { useAuth } from "../store/AuthContext";
+import { evaluatePerfectForToday, loadStudentQuests } from "../lib/quest-eval";
+import { todayISO } from "../lib/dates";
 import type { PointEntry, Purchase, Quest, Reward } from "../types";
 
 const KIND_LABEL: Record<Reward["kind"], string> = {
@@ -96,7 +98,7 @@ export default function Manage() {
         }
       }
     }
-    all.sort((a, b) => (a.date < b.date ? 1 : -1));
+    all.sort((a, b) => (a.due_date < b.due_date ? 1 : -1));
     setVerifyQueue(all);
   }, [students]);
   useEffect(() => {
@@ -104,13 +106,14 @@ export default function Manage() {
   }, [loadVerify]);
 
   async function verifyQuest(q: Quest) {
+    const today = todayISO();
     const next: Quest = {
       ...q,
       verified: true,
       verifiedAt: new Date().toISOString(),
       rejectedReason: undefined,
     };
-    await storage.write(KEYS.quest(q.student_id, q.date, q.id), next);
+    await storage.write(KEYS.quest(q.student_id, q.id), next);
     const ledger =
       (await storage.read<PointEntry[]>(KEYS.pointLedger(q.student_id))) ?? [];
     if (!ledger.some((e) => e.quest_id === q.id && e.reason === "quest_complete")) {
@@ -119,7 +122,7 @@ export default function Manage() {
         {
           id: crypto.randomUUID(),
           student_id: q.student_id,
-          date: q.date,
+          date: today,
           delta: q.points,
           reason: "quest_complete",
           quest_id: q.id,
@@ -131,20 +134,8 @@ export default function Manage() {
     await loadVerify();
   }
 
-  async function isStillPerfect(
-    studentId: string,
-    date: string
-  ): Promise<boolean> {
-    const keys = await storage.list(`quests/${studentId}/${date}/`);
-    if (keys.length === 0) return false;
-    for (const k of keys) {
-      const x = await storage.read<Quest>(k);
-      if (!x || x.status !== "done") return false;
-    }
-    return true;
-  }
-
   async function rejectQuest(q: Quest, reason: string) {
+    const today = todayISO();
     const next: Quest = {
       ...q,
       status: "pending",
@@ -152,14 +143,15 @@ export default function Manage() {
       verified: false,
       rejectedReason: reason.trim() || "다시 해주세요",
     };
-    await storage.write(KEYS.quest(q.student_id, q.date, q.id), next);
-    // 완주 상태 깨졌을 수 있으니 그날의 perfect/streak 보너스 회수
-    const perfectStill = await isStillPerfect(q.student_id, q.date);
-    if (!perfectStill) {
+    await storage.write(KEYS.quest(q.student_id, q.id), next);
+    // 완주 상태가 깨졌으면 오늘의 perfect/streak 보너스 회수
+    const allQuests = await loadStudentQuests(q.student_id);
+    const stillPerfect = evaluatePerfectForToday(allQuests, today);
+    if (!stillPerfect) {
       const ledger =
         (await storage.read<PointEntry[]>(KEYS.pointLedger(q.student_id))) ?? [];
       const nextLedger = ledger.filter((e) => {
-        if (e.date !== q.date) return true;
+        if (e.date !== today) return true;
         return e.reason !== "perfect_day" && e.reason !== "streak_bonus";
       });
       if (nextLedger.length !== ledger.length) {
@@ -245,9 +237,7 @@ export default function Manage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{q.title}</div>
                       <div className="text-xs text-stone-500 dark:text-stone-400">
-                        {s?.emoji} {s?.name} · {q.date}
-                        {q.due_date && ` (마감 ${q.due_date.slice(5).replace("-", ".")})`}
-                        {" · "}
+                        {s?.emoji} {s?.name} · 마감 {q.due_date.slice(5).replace("-", ".")} ·{" "}
                         {q.target}
                         {q.unit} · +{q.points}p
                       </div>
