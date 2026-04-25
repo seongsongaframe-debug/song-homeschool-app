@@ -79,27 +79,36 @@ export default function Manage() {
   const approved = purchases.filter((p) => p.status === "approved");
 
   const [verifyQueue, setVerifyQueue] = useState<Quest[]>([]);
+  const [recentVerified, setRecentVerified] = useState<Quest[]>([]);
   const [rejectTarget, setRejectTarget] = useState<Quest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
   const loadVerify = useCallback(async () => {
-    const all: Quest[] = [];
+    const queue: Quest[] = [];
+    const recent: Quest[] = [];
     for (const s of students) {
       const keys = await storage.list(`quests/${s.id}/`);
       for (const k of keys) {
         const q = await storage.read<Quest>(k);
+        if (!q) continue;
         if (
-          q &&
           q.status === "done" &&
           q.requires_verification &&
           !q.verified &&
           !q.rejectedReason
         ) {
-          all.push(q);
+          queue.push(q);
+        } else if (q.status === "done" && q.verified) {
+          recent.push(q);
         }
       }
     }
-    all.sort((a, b) => (a.due_date < b.due_date ? 1 : -1));
-    setVerifyQueue(all);
+    queue.sort((a, b) => (a.due_date < b.due_date ? 1 : -1));
+    recent.sort((a, b) =>
+      (b.verifiedAt ?? "").localeCompare(a.verifiedAt ?? "")
+    );
+    setVerifyQueue(queue);
+    setRecentVerified(recent.slice(0, 15)); // 최근 15건
   }, [students]);
   useEffect(() => {
     loadVerify();
@@ -129,6 +138,40 @@ export default function Manage() {
           note: q.title,
         },
       ];
+      await storage.write(KEYS.pointLedger(q.student_id), nextLedger);
+    }
+    await loadVerify();
+  }
+
+  // 확인 취소: verified=true 였던 퀘스트를 다시 대기 상태로 되돌림.
+  // 점수/완주 보너스 회수, status 는 done 유지(아이 입장에서 다시 확인 받을 수 있게).
+  async function unverifyQuest(q: Quest) {
+    const today = todayISO();
+    const next: Quest = {
+      ...q,
+      verified: false,
+      verifiedAt: undefined,
+    };
+    await storage.write(KEYS.quest(q.student_id, q.id), next);
+
+    // ledger 에서 이 quest 의 quest_complete 항목 제거
+    const ledger =
+      (await storage.read<PointEntry[]>(KEYS.pointLedger(q.student_id))) ?? [];
+    let nextLedger = ledger.filter(
+      (e) => !(e.quest_id === q.id && e.reason === "quest_complete")
+    );
+
+    // 완주 상태 깨졌으면 today 의 perfect/streak 도 회수
+    const allQuests = await loadStudentQuests(q.student_id);
+    const stillPerfect = evaluatePerfectForToday(allQuests, today);
+    if (!stillPerfect) {
+      nextLedger = nextLedger.filter((e) => {
+        if (e.date !== today) return true;
+        return e.reason !== "perfect_day" && e.reason !== "streak_bonus";
+      });
+    }
+
+    if (nextLedger.length !== ledger.length) {
       await storage.write(KEYS.pointLedger(q.student_id), nextLedger);
     }
     await loadVerify();
@@ -272,6 +315,46 @@ export default function Manage() {
                       다시
                     </button>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {recentVerified.length > 0 && (
+        <section className="card mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-bold">
+              ✅ 최근 확인 완료 ({recentVerified.length})
+            </h3>
+            <span className="text-xs text-stone-500 dark:text-stone-400">
+              실수로 확인한 항목은 "되돌리기" 가능
+            </span>
+          </div>
+          <div className="space-y-2">
+            {recentVerified.map((q) => {
+              const s = students.find((x) => x.id === q.student_id);
+              return (
+                <div
+                  key={q.id}
+                  className="border-t border-stone-200 dark:border-stone-800 pt-2 flex items-center gap-2"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{q.title}</div>
+                    <div className="text-xs text-stone-500 dark:text-stone-400">
+                      {s?.emoji} {s?.name} · 마감{" "}
+                      {q.due_date.slice(5).replace("-", ".")} · +{q.points}p
+                      {q.verifiedAt &&
+                        ` · 확인 ${q.verifiedAt.slice(5, 16).replace("T", " ")}`}
+                    </div>
+                  </div>
+                  <button
+                    className="btn-ghost text-sm"
+                    onClick={() => unverifyQuest(q)}
+                  >
+                    ↺ 되돌리기
+                  </button>
                 </div>
               );
             })}
