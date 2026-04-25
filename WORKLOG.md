@@ -2,7 +2,7 @@
 
 ## 현재 상태
 - **단계**: 세인 20건 + 혜인 8건 = 각 1000p. 양쪽 모두 미래 마감만 (overdue 없음).
-- **마지막 작업**: 2026-04-25 · 혜인 수학 3건 삭제 + 4/21 overdue 6건 → 4/28로 이동 + 점수 재배분.
+- **마지막 작업**: 2026-04-25 · 확인 되돌리기 기능 추가 (실수로 확인한 항목 복원).
 - **다음 할 일**: 매주 토요일 — 눈높이 + 학원 숙제 재배포 (`deploy-noonopi.mjs` + 학원별 텍스트 붙여넣기).
 
 ## 📌 핵심 관리 정보 (Reference)
@@ -90,6 +90,7 @@ service cloud.firestore {
 
 | 날짜 | 작업 | 산출물 / 커밋 |
 |------|------|--------|
+| 2026-04-25 | **확인 되돌리기 기능** — Manage 화면에 "✅ 최근 확인 완료" 섹션 추가. verified 퀘스트 15건 노출, 각 항목에 "↺ 되돌리기" 버튼. 클릭 시 verified=false + ledger quest_complete 제거 + 완주 상태 깨졌으면 perfect_day·streak_bonus 회수 + 확인 대기 큐로 복귀. | `src/pages/Manage.tsx` |
 | 2026-04-25 | **혜인 weekly 정리** — 혜인 수학 3건 삭제 (혜인은 수학 숙제 없음). 4/21 마감으로 overdue 였던 6건(파닉스 4 + 브릭스리딩 2) → 4/28로 이동. 1000p 재배분: 파닉스 4 × 100p + 브릭스리딩 2 × 100p + 눈높이 2 × 200p = 1000p. | `scripts/fix-hyein-week.mjs` |
 | 2026-04-25 | **체크박스 UX + 보상 이미지 + 4/27 마감일 정정** — (a) QuestCard 좌측 큰 원형이 미완료 시 빈 ✓ 체크박스로 보이게 (subject 아이콘은 메타 라인으로 이동) → 서브태스크 없는 카드도 명확히 클릭 가능. (b) `Reward.image_url` / `source_url` 필드 추가, Shop 카드에 실제 상품 이미지 표시, Manage 편집기에 두 입력 추가. SSG 메탈카드봇 이미지 적용. (c) 세인 영어학원 6건 due_date 4/20→4/27 이동(20일은 발급일이고 실제 마감은 그 다음 주 같은 요일). (d) 영어학원 추가로 세인 weekly 14→20건이 되어 1000p 재배분 (영어학원 250 + 눈높이 100 + 능률보카 110 + 영문학당 본문 260 + 영문학당 3과 210 + 수학 70 = 1000). | `src/types.ts` · `src/pages/{QuestBoard,Shop,Manage}.tsx` · `scripts/rebalance-week.mjs` |
 | 2026-04-25 | **학생별 보상 + 메탈카드봇 등록** — `Reward.student_id?` 필드 추가, Shop 학생 한정 필터, Manage 보상 편집기에 "대상 학생" 셀렉트(공용/세인 전용/혜인 전용). 메탈카드봇 플레타Z (토이하우스, 정가 31,730원) 혜인 전용 3000p 등록. | `src/types.ts` · `src/pages/{Shop,Manage}.tsx` · `scripts/add-reward.mjs` |
