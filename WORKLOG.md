@@ -1,9 +1,9 @@
 # 송홈스쿨관리앱 — 작업로그
 
 ## 현재 상태
-- **단계**: Quest 모델 v2 적용 완료. 눈높이 주간 숙제 (4/28 화 마감, 1/2 + 2/2) 세인·혜인 모두 배포.
-- **마지막 작업**: 2026-04-25 · 눈높이 주간 숙제 배포 + nextTuesday UTC 버그 수정.
-- **다음 할 일**: 다음주 눈높이 (5/5 마감) 배포 — 매주 토요일에 `node scripts/deploy-noonopi.mjs` 실행
+- **단계**: 주간 1000p 배포 체계 가동. 학생별 보상 분리 기능 추가. 메탈카드봇 플레타Z (혜인 전용 3000p) 등록.
+- **마지막 작업**: 2026-04-25 · 1) 세인·혜인 주간 숙제 배포(둘 다 1000p/주) 2) Reward 학생별 분리 (`student_id?`) 3) SSG 메탈카드봇 등록.
+- **다음 할 일**: 매주 토요일 — 눈높이 + 영어학원 주간 숙제 재배포. 세인 영어학원 숙제는 매주 변동되니 학원 텍스트 받아서 붙여넣기.
 
 ## 📌 핵심 관리 정보 (Reference)
 
@@ -90,6 +90,8 @@ service cloud.firestore {
 
 | 날짜 | 작업 | 산출물 / 커밋 |
 |------|------|--------|
+| 2026-04-25 | **학생별 보상 + 메탈카드봇 등록** — `Reward.student_id?` 필드 추가, Shop 학생 한정 필터, Manage 보상 편집기에 "대상 학생" 셀렉트(공용/세인 전용/혜인 전용). 메탈카드봇 플레타Z (토이하우스, 정가 31,730원) 혜인 전용 3000p 등록. | `src/types.ts` · `src/pages/{Shop,Manage}.tsx` · `scripts/add-reward.mjs` |
+| 2026-04-25 | **주간 1000p 배포 체계** — 세인 14개·혜인 5개로 각 1000p 정확 분배. 세인: 영어학원 4/29 이관·5건 점수 갱신, 영문학당 3과 5/1 마감 4건 신규, 눈높이 50p, 수학(월·수·목) 30/40/50p. 혜인: 눈높이 200p, 수학 200p×3. 검증 출력으로 각 1000p 합 확인. | `scripts/deploy-week-1000p.mjs` |
 | 2026-04-25 | **눈높이 주간 숙제 배포** — 매주 화요일 마감, 분량 절반씩 1/2 + 2/2 두 항목. 세인·혜인 각 2개 (총 4개) 배포. 다음 마감일 자동 계산(`nextTuesday`). 초기 실행 시 UTC 변환 버그로 due_date 가 월요일(04-27)로 잘못 들어가 `fix-noonopi-due.mjs` 로 04-28 정정. 다음 주부턴 동일 스크립트 재실행만 하면 다음 화요일 자동 산출. | `scripts/deploy-noonopi.mjs` · `scripts/fix-noonopi-due.mjs` |
 | 2026-04-25 | **Quest 모델 v2 (배포일 ≠ 마감일, 마감 전까지 계속 노출)** — 기존 `Quest.date` 제거, `assigned_date`(배포일) + `due_date`(마감일) 두 필드로 분리. Storage 경로도 `quests/{sid}/{qid}` 로 평탄화. 새 헬퍼 `quest-eval.ts` 의 `classifyQuests` 로 4-버킷(overdue/dueToday/upcoming/done) 분류. QuestBoard·ParentQuests·Manage 모두 새 모델로 마이그레이션. 기존 데이터는 `migrate-quests.ts` 가 첫 로드 시 자동 변환. Perfect day 평가도 due_date 기준으로 변경. 홈 PC ↔ 사무실 PC 분리 배포 구조 메모리에 기록. | `src/types.ts` · `src/storage/index.ts` · `src/store/{DataContext,useQuests}.ts` · `src/lib/{migrate-quests,quest-eval,homework-parser}.ts` · `src/pages/{QuestBoard,ParentQuests,Manage}.tsx` |
 | 2026-04-24 | **학생 이모지 성별 반영** — 세인(남) 👧→👦, 혜인(여) 🧒→👧. seed.ts 수정 + Firestore `config/students` 즉시 업데이트. | `scripts/update-student-emojis.mjs` · `src/data/seed.ts` |

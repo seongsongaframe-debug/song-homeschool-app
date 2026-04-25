@@ -379,12 +379,17 @@ export default function Manage() {
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-          {rewards.map((r) => (
+          {rewards.map((r) => {
+            const owner = r.student_id
+              ? students.find((s) => s.id === r.student_id)
+              : null;
+            return (
             <div key={r.id} className="card text-center py-3">
               <div className="text-3xl">{r.icon}</div>
               <div className="font-medium text-sm">{r.title}</div>
               <div className="text-xs text-stone-500 dark:text-stone-400">
                 {KIND_LABEL[r.kind]} · {r.cost_points}p
+                {owner && ` · ${owner.emoji} ${owner.name}만`}
               </div>
               <div className="flex gap-1 mt-2 justify-center">
                 <button
@@ -404,7 +409,8 @@ export default function Manage() {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -487,6 +493,7 @@ function RewardEditor({
   onCancel: () => void;
   onSave: (r: Reward) => void;
 }) {
+  const { students } = useData();
   const [draft, setDraft] = useState(reward);
   return (
     <div className="card mb-2 border-brand-500 dark:border-brand-400 border-2">
@@ -543,6 +550,23 @@ function RewardEditor({
             value={draft.description ?? ""}
             onChange={(e) => setDraft({ ...draft, description: e.target.value })}
           />
+        </div>
+        <div className="col-span-2 md:col-span-4">
+          <label className="text-xs">대상 학생</label>
+          <select
+            className="input"
+            value={draft.student_id ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, student_id: e.target.value || undefined })
+            }
+          >
+            <option value="">모두 (공용 보상)</option>
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.emoji} {s.name} 전용
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       <div className="flex gap-2 mt-2">

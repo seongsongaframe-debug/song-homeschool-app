@@ -52,7 +52,10 @@ export default function Shop() {
 
   if (!studentId) return null;
 
-  const activeRewards = rewards.filter((r) => r.active);
+  // 학생 한정 보상은 본인 것만, 공용은 모두 노출.
+  const activeRewards = rewards.filter(
+    (r) => r.active && (!r.student_id || r.student_id === studentId)
+  );
 
   return (
     <div className="max-w-3xl mx-auto p-4">

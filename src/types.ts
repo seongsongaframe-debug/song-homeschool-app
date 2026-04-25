@@ -255,6 +255,8 @@ export interface Reward {
   stock?: number;
   description?: string;
   active: boolean;
+  // 특정 학생만 볼 수 있는 보상. 비어있으면 모든 학생 공용.
+  student_id?: string;
 }
 
 export type PurchaseStatus = "pending" | "approved" | "rejected" | "fulfilled";
