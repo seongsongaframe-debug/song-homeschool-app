@@ -257,6 +257,10 @@ export interface Reward {
   active: boolean;
   // 특정 학생만 볼 수 있는 보상. 비어있으면 모든 학생 공용.
   student_id?: string;
+  // 상품 이미지 URL (있으면 카드에 사진으로 표시, 없으면 이모지 아이콘)
+  image_url?: string;
+  // 외부 상품 페이지 (참고용)
+  source_url?: string;
 }
 
 export type PurchaseStatus = "pending" | "approved" | "rejected" | "fulfilled";

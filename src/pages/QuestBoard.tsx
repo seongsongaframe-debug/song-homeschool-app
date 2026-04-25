@@ -399,18 +399,20 @@ function QuestCard({
     >
       <div className="flex items-center gap-3">
         <div
-          className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl flex-shrink-0 transition ${
+          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 transition border-2 ${
             done
               ? awaitingVerify
-                ? "bg-amber-500 text-white"
-                : "bg-emerald-500 text-white"
+                ? "bg-amber-500 border-amber-500 text-white"
+                : "bg-emerald-500 border-emerald-500 text-white"
               : overdue
-              ? "border-2 border-red-400 dark:border-red-700"
-              : "border-2 border-stone-300 dark:border-stone-700"
+              ? "bg-white dark:bg-stone-900 border-red-400 dark:border-red-700 text-stone-400 dark:text-stone-500"
+              : "bg-white dark:bg-stone-900 border-stone-300 dark:border-stone-600 text-stone-300 dark:text-stone-600 hover:border-brand-500 hover:text-brand-500"
           }`}
-          aria-label={done ? "완료" : "미완료"}
+          aria-label={done ? "완료" : "체크해서 완료"}
+          role="checkbox"
+          aria-checked={done}
         >
-          {done ? (awaitingVerify ? "⏳" : "✓") : subject?.icon ?? "📝"}
+          {done ? (awaitingVerify ? "⏳" : "✓") : "✓"}
         </div>
         <div className="flex-1 min-w-0">
           <div className={`font-semibold truncate ${done ? "line-through" : ""}`}>
@@ -418,7 +420,9 @@ function QuestCard({
           </div>
           <div className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-2 mt-0.5 flex-wrap">
             {subject && (
-              <span style={{ color: subject.color }}>{subject.name}</span>
+              <span style={{ color: subject.color }}>
+                {subject.icon} {subject.name}
+              </span>
             )}
             <span>
               {quest.target}

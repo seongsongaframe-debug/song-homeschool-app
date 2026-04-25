@@ -552,6 +552,28 @@ function RewardEditor({
           />
         </div>
         <div className="col-span-2 md:col-span-4">
+          <label className="text-xs">상품 이미지 URL (선택)</label>
+          <input
+            className="input"
+            placeholder="https://..."
+            value={draft.image_url ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, image_url: e.target.value || undefined })
+            }
+          />
+        </div>
+        <div className="col-span-2 md:col-span-4">
+          <label className="text-xs">상품 페이지 URL (선택)</label>
+          <input
+            className="input"
+            placeholder="https://..."
+            value={draft.source_url ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, source_url: e.target.value || undefined })
+            }
+          />
+        </div>
+        <div className="col-span-2 md:col-span-4">
           <label className="text-xs">대상 학생</label>
           <select
             className="input"

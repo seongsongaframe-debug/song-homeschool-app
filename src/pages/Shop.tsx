@@ -115,7 +115,21 @@ export default function Shop() {
             const canAfford = balance >= r.cost_points;
             return (
               <div key={r.id} className="card flex flex-col text-center">
-                <div className="text-5xl mb-2">{r.icon}</div>
+                {r.image_url ? (
+                  <div className="aspect-square w-full mb-2 rounded-xl overflow-hidden bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+                    <img
+                      src={r.image_url}
+                      alt={r.title}
+                      className="w-full h-full object-contain"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-5xl mb-2">{r.icon}</div>
+                )}
                 <div className="font-bold">{r.title}</div>
                 <div className="text-xs text-stone-500 dark:text-stone-400 mb-2">
                   {KIND_LABEL[r.kind]}
