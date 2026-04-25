@@ -1,9 +1,9 @@
 # 송홈스쿨관리앱 — 작업로그
 
 ## 현재 상태
-- **단계**: Quest 모델 v2 (assigned_date + due_date 분리) 적용 완료. 빌드 통과.
-- **마지막 작업**: 2026-04-25 · Quest `date` → `assigned_date` + `due_date` 리팩토링. 배포일 지나도 done 될 때까지 화면에 계속 보이도록 4-버킷 분류(overdue/dueToday/upcoming/done) 적용.
-- **다음 할 일**: GitHub push → 라이브 배포 → 첫 접속 시 자동 마이그레이션 동작 검증
+- **단계**: Quest 모델 v2 적용 완료. 눈높이 주간 숙제 (4/28 화 마감, 1/2 + 2/2) 세인·혜인 모두 배포.
+- **마지막 작업**: 2026-04-25 · 눈높이 주간 숙제 배포 + nextTuesday UTC 버그 수정.
+- **다음 할 일**: 다음주 눈높이 (5/5 마감) 배포 — 매주 토요일에 `node scripts/deploy-noonopi.mjs` 실행
 
 ## 📌 핵심 관리 정보 (Reference)
 
@@ -90,6 +90,7 @@ service cloud.firestore {
 
 | 날짜 | 작업 | 산출물 / 커밋 |
 |------|------|--------|
+| 2026-04-25 | **눈높이 주간 숙제 배포** — 매주 화요일 마감, 분량 절반씩 1/2 + 2/2 두 항목. 세인·혜인 각 2개 (총 4개) 배포. 다음 마감일 자동 계산(`nextTuesday`). 초기 실행 시 UTC 변환 버그로 due_date 가 월요일(04-27)로 잘못 들어가 `fix-noonopi-due.mjs` 로 04-28 정정. 다음 주부턴 동일 스크립트 재실행만 하면 다음 화요일 자동 산출. | `scripts/deploy-noonopi.mjs` · `scripts/fix-noonopi-due.mjs` |
 | 2026-04-25 | **Quest 모델 v2 (배포일 ≠ 마감일, 마감 전까지 계속 노출)** — 기존 `Quest.date` 제거, `assigned_date`(배포일) + `due_date`(마감일) 두 필드로 분리. Storage 경로도 `quests/{sid}/{qid}` 로 평탄화. 새 헬퍼 `quest-eval.ts` 의 `classifyQuests` 로 4-버킷(overdue/dueToday/upcoming/done) 분류. QuestBoard·ParentQuests·Manage 모두 새 모델로 마이그레이션. 기존 데이터는 `migrate-quests.ts` 가 첫 로드 시 자동 변환. Perfect day 평가도 due_date 기준으로 변경. 홈 PC ↔ 사무실 PC 분리 배포 구조 메모리에 기록. | `src/types.ts` · `src/storage/index.ts` · `src/store/{DataContext,useQuests}.ts` · `src/lib/{migrate-quests,quest-eval,homework-parser}.ts` · `src/pages/{QuestBoard,ParentQuests,Manage}.tsx` |
 | 2026-04-24 | **학생 이모지 성별 반영** — 세인(남) 👧→👦, 혜인(여) 🧒→👧. seed.ts 수정 + Firestore `config/students` 즉시 업데이트. | `scripts/update-student-emojis.mjs` · `src/data/seed.ts` |
 | 2026-04-24 | **Firestore undefined 필드 거부 수정 + 아이 취소 UI** — `rejectQuest`/`verifyQuest` 가 `{completedAt: undefined}` 같은 객체를 쓰면 Firestore 가 throw 해서 '다시 보내기' 가 조용히 실패하던 문제. `initializeFirestore(app, { ignoreUndefinedProperties: true })` 로 전역 해결. 추가로 아이 화면 완료 카드에 "↺ 취소" 버튼 명시화, 보호자 검증 후엔 🔒 락 아이콘 + 취소 불가. | `src/firebase.ts` · `src/pages/QuestBoard.tsx` |
