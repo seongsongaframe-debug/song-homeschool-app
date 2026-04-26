@@ -4,6 +4,7 @@ import { useData } from "../store/DataContext";
 import { useRewards, usePurchases } from "../store/useRewards";
 import { useAuth } from "../store/AuthContext";
 import { evaluatePerfectForToday, loadStudentQuests } from "../lib/quest-eval";
+import { manualSeedHyein, type SeedReason } from "../lib/auto-quests";
 import { todayISO } from "../lib/dates";
 import type { PointEntry, Purchase, Quest, Reward } from "../types";
 
@@ -30,6 +31,28 @@ export default function Manage() {
   const [editing, setEditing] = useState<Reward | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [pinInput, setPinInput] = useState("");
+
+  // ----- 혜인 주간 자동 부여 -----
+  const [autoSeedBusy, setAutoSeedBusy] = useState(false);
+  const [autoSeedToast, setAutoSeedToast] = useState<string | null>(null);
+
+  async function triggerHyeinAutoSeed() {
+    setAutoSeedBusy(true);
+    try {
+      const r = await manualSeedHyein();
+      const msgByReason: Record<SeedReason, string> = {
+        seeded: `✓ ${r.weekStart} 주에 ${r.created}개 퀘스트 생성`,
+        already_flagged: `이미 ${r.weekStart} 주는 자동 생성됨 (스킵)`,
+        existing_quests: `${r.weekStart} 주에 이미 퀘스트가 있어 스킵`,
+      };
+      setAutoSeedToast(msgByReason[r.reason]);
+    } catch (e) {
+      setAutoSeedToast(`오류: ${(e as Error).message}`);
+    } finally {
+      setAutoSeedBusy(false);
+      setTimeout(() => setAutoSeedToast(null), 5000);
+    }
+  }
 
   // ----- 직접 포인트 지급 폼 -----
   const [grantStudentId, setGrantStudentId] = useState(students[0]?.id ?? "");
@@ -297,6 +320,25 @@ export default function Manage() {
             >
               PIN 설정
             </button>
+          </div>
+        )}
+      </section>
+
+      <section className="card mb-4">
+        <h3 className="font-bold mb-2">🔁 혜인 주간 과제 자동 부여</h3>
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-2">
+          매주 토/일 첫 로드 시 차주 7개 (눈높이 2 + 학원 5 = 1000p) 자동 생성. 누락 시 아래 버튼으로 수동 트리거.
+        </p>
+        <button
+          className="btn-ghost text-sm"
+          disabled={autoSeedBusy}
+          onClick={triggerHyeinAutoSeed}
+        >
+          {autoSeedBusy ? "처리 중…" : "지금 채우기"}
+        </button>
+        {autoSeedToast && (
+          <div className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">
+            {autoSeedToast}
           </div>
         )}
       </section>

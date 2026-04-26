@@ -1,7 +1,8 @@
 import { NavLink, Route, Routes, Navigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DataProvider, useData } from "./store/DataContext";
 import { AuthProvider, useAuth } from "./store/AuthContext";
+import { maybeAutoSeedHyein } from "./lib/auto-quests";
 import QuestBoard from "./pages/QuestBoard";
 import ParentQuests from "./pages/ParentQuests";
 import Curriculum from "./pages/Curriculum";
@@ -36,6 +37,11 @@ function Shell() {
   const { ready: dataReady } = useData();
   const { ready: authReady, role, pinSet, enterParent, exitParent } = useAuth();
   const [showPin, setShowPin] = useState(false);
+
+  useEffect(() => {
+    if (!dataReady) return;
+    maybeAutoSeedHyein().catch((e) => console.warn("[auto-seed]", e));
+  }, [dataReady]);
 
   if (!dataReady || !authReady) {
     return (

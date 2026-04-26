@@ -1,0 +1,236 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { useEffect, useMemo, useState } from "react";
+import { useData } from "../store/DataContext";
+import { StudentTabs } from "../components/StudentTabs";
+import { fmtKDate, shiftDate, todayISO } from "../lib/dates";
+import { storage, KEYS } from "../storage";
+import { DIFFICULTY_POINTS } from "../types";
+import { parseHomework } from "../lib/homework-parser";
+function fromQuest(q) {
+    return {
+        id: q.id,
+        title: q.title,
+        subject_id: q.subject_id,
+        material_id: q.material_id,
+        target: q.target,
+        unit: q.unit,
+        difficulty: q.difficulty,
+        points: q.points,
+        note: q.note,
+        due_date: q.due_date,
+        subtasks: q.subtasks,
+        requires_verification: q.requires_verification,
+        existing: q,
+    };
+}
+function emptyDraft() {
+    return {
+        id: crypto.randomUUID(),
+        title: "",
+        target: 1,
+        unit: "건",
+        difficulty: "normal",
+        points: DIFFICULTY_POINTS.normal,
+    };
+}
+export default function ParentQuests() {
+    const { students, subjects, materials } = useData();
+    const [studentId, setStudentId] = useState(students[0]?.id ?? "");
+    const [date, setDate] = useState(todayISO());
+    const [drafts, setDrafts] = useState([]);
+    const [templates, setTemplates] = useState([]);
+    const [templateName, setTemplateName] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [showPaste, setShowPaste] = useState(false);
+    const subjectMap = useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
+    const materialMap = useMemo(() => new Map(materials.map((m) => [m.id, m])), [materials]);
+    useEffect(() => {
+        if (!studentId)
+            return;
+        // date = "이 마감일(due_date) 그룹" 의미.
+        // 학생의 모든 퀘스트 중 해당 due_date 인 것만 편집 대상으로 로드.
+        (async () => {
+            const keys = await storage.list(KEYS.questsAll(studentId));
+            const items = [];
+            for (const k of keys) {
+                const q = await storage.read(k);
+                if (q && q.due_date === date)
+                    items.push(q);
+            }
+            items.sort((a, b) => a.id.localeCompare(b.id));
+            setDrafts(items.map(fromQuest));
+        })();
+        (async () => {
+            const t = await storage.read(KEYS.questTemplates(studentId));
+            setTemplates(t ?? []);
+        })();
+    }, [studentId, date]);
+    if (!studentId)
+        return null;
+    function addRow() {
+        setDrafts((d) => [...d, emptyDraft()]);
+    }
+    function addFromMaterial(materialId) {
+        const m = materialMap.get(materialId);
+        if (!m)
+            return;
+        const d = emptyDraft();
+        d.subject_id = m.subject_id;
+        d.material_id = m.id;
+        d.title = m.name;
+        d.unit =
+            m.progress_type === "daily_reps"
+                ? m.unit
+                : m.progress_type === "linear"
+                    ? "항목"
+                    : "건";
+        d.target = m.progress_type === "daily_reps" ? m.daily_target : 1;
+        setDrafts((list) => [...list, d]);
+    }
+    function update(id, patch) {
+        setDrafts((list) => list.map((d) => {
+            if (d.id !== id)
+                return d;
+            const next = { ...d, ...patch };
+            if (patch.difficulty) {
+                next.points = DIFFICULTY_POINTS[patch.difficulty];
+            }
+            return next;
+        }));
+    }
+    function removeRow(id) {
+        setDrafts((list) => list.filter((d) => d.id !== id));
+    }
+    async function distribute() {
+        setSaving(true);
+        // 동일 due_date 그룹의 기존 퀘스트 중 drafts 에 없는 것은 삭제 (다른 due_date 의 것은 보존).
+        const allKeys = await storage.list(KEYS.questsAll(studentId));
+        const currentIds = new Set(drafts.map((d) => d.id));
+        for (const k of allKeys) {
+            const q = await storage.read(k);
+            if (q && q.due_date === date && !currentIds.has(q.id)) {
+                await storage.remove(k);
+            }
+        }
+        for (const d of drafts) {
+            const status = d.existing?.status ?? "pending";
+            const q = {
+                id: d.id,
+                student_id: studentId,
+                assigned_date: d.existing?.assigned_date ?? todayISO(),
+                due_date: d.due_date ?? date,
+                title: d.title.trim() || "(제목 없음)",
+                subject_id: d.subject_id,
+                material_id: d.material_id,
+                target: d.target,
+                unit: d.unit,
+                difficulty: d.difficulty,
+                points: d.points,
+                status,
+                completedAt: d.existing?.completedAt,
+                note: d.note,
+                subtasks: d.subtasks,
+                requires_verification: d.requires_verification,
+                verified: d.existing?.verified ?? false,
+            };
+            await storage.write(KEYS.quest(studentId, q.id), q);
+        }
+        setSaving(false);
+    }
+    async function saveAsTemplate() {
+        const name = templateName.trim();
+        if (!name || drafts.length === 0)
+            return;
+        const template = {
+            id: crypto.randomUUID(),
+            name,
+            student_id: studentId,
+            items: drafts.map((d) => ({
+                title: d.title,
+                subject_id: d.subject_id,
+                material_id: d.material_id,
+                target: d.target,
+                unit: d.unit,
+                difficulty: d.difficulty,
+                points: d.points,
+                note: d.note,
+                subtasks: d.subtasks,
+                requires_verification: d.requires_verification,
+            })),
+        };
+        const next = [...templates, template];
+        await storage.write(KEYS.questTemplates(studentId), next);
+        setTemplates(next);
+        setTemplateName("");
+    }
+    function applyTemplate(t) {
+        setDrafts(t.items.map((it) => ({
+            id: crypto.randomUUID(),
+            ...it,
+        })));
+    }
+    async function removeTemplate(id) {
+        const next = templates.filter((t) => t.id !== id);
+        await storage.write(KEYS.questTemplates(studentId), next);
+        setTemplates(next);
+    }
+    function importParsed(parsed) {
+        // 파싱된 날짜는 "마감일"로 쓰고, 배포일(date)은 현재 선택된 날짜 유지.
+        const imported = parsed.quests.map((p) => ({
+            id: p.id,
+            title: p.title,
+            target: p.target,
+            unit: p.unit,
+            difficulty: p.difficulty,
+            points: p.points,
+            note: p.note,
+            due_date: parsed.date,
+            subtasks: p.subtasks.length > 0 ? p.subtasks : undefined,
+            requires_verification: true,
+        }));
+        setDrafts((list) => [...list, ...imported]);
+        setShowPaste(false);
+    }
+    const totalPoints = drafts.reduce((s, d) => s + d.points, 0);
+    return (_jsxs("div", { className: "max-w-4xl mx-auto p-4", children: [_jsxs("header", { className: "mb-4 flex items-start justify-between", children: [_jsxs("div", { children: [_jsx("h1", { className: "text-2xl font-bold", children: "\uACFC\uC81C \uBC30\uD3EC (\uBCF4\uD638\uC790)" }), _jsxs("p", { className: "text-stone-500 dark:text-stone-400", children: ["\uB9C8\uAC10\uC77C: ", fmtKDate(date), " \u00B7 \uCD1D ", drafts.length, "\uAC1C \u00B7 \uCD5C\uB300 ", totalPoints, "p"] })] }), _jsx("button", { className: "btn-primary", onClick: () => setShowPaste(true), children: "\uD83D\uDCCB \uD559\uC6D0 \uC219\uC81C \uBD99\uC5EC\uB123\uAE30" })] }), _jsxs("div", { className: "flex items-center gap-2 mb-4", children: [_jsx("button", { className: "btn-ghost", onClick: () => setDate((d) => shiftDate(d, -1)), children: "\u25C0" }), _jsx("input", { type: "date", className: "input flex-1", value: date, onChange: (e) => setDate(e.target.value) }), _jsx("button", { className: "btn-ghost", onClick: () => setDate((d) => shiftDate(d, 1)), children: "\u25B6" }), _jsx("button", { className: "btn-ghost", onClick: () => setDate(todayISO()), children: "\uC624\uB298" })] }), _jsx(StudentTabs, { students: students, selected: studentId, onSelect: setStudentId }), showPaste && (_jsx(PasteDialog, { defaultDate: date, onCancel: () => setShowPaste(false), onImport: importParsed })), templates.length > 0 && (_jsxs("section", { className: "card mb-4", children: [_jsx("h3", { className: "font-bold mb-2", children: "\uD83D\uDCCB \uC800\uC7A5\uB41C \uD15C\uD50C\uB9BF" }), _jsx("div", { className: "flex flex-wrap gap-2", children: templates.map((t) => (_jsxs("div", { className: "flex items-center gap-1 bg-stone-100 dark:bg-stone-800 rounded-lg pl-3 pr-1 py-1", children: [_jsxs("button", { className: "text-sm font-medium", onClick: () => applyTemplate(t), children: [t.name, " (", t.items.length, ")"] }), _jsx("button", { className: "text-xs text-stone-400 hover:text-red-500 px-1", onClick: () => removeTemplate(t.id), "aria-label": `${t.name} 템플릿 삭제`, children: "\u2715" })] }, t.id))) })] })), _jsxs("section", { className: "card mb-4", children: [_jsx("h3", { className: "font-bold mb-2", children: "\uAD50\uC7AC\uC5D0\uC11C \uBC14\uB85C \uCD94\uAC00" }), _jsx("div", { className: "flex flex-wrap gap-1", children: materials.map((m) => {
+                            const s = subjectMap.get(m.subject_id);
+                            return (_jsxs("button", { onClick: () => addFromMaterial(m.id), className: "chip hover:brightness-95", style: {
+                                    backgroundColor: (s?.color ?? "#64748b") + "22",
+                                    color: s?.color ?? "#64748b",
+                                }, children: [s?.icon, " ", m.name] }, m.id));
+                        }) })] }), _jsxs("section", { className: "space-y-2 mb-4", children: [drafts.map((d) => {
+                        const subj = d.subject_id ? subjectMap.get(d.subject_id) : null;
+                        return (_jsxs("div", { className: "card", children: [_jsxs("div", { className: "flex items-center gap-2 mb-2", children: [subj && (_jsx("span", { className: "w-7 h-7 rounded-lg flex items-center justify-center text-white text-sm", style: { backgroundColor: subj.color }, children: subj.icon })), _jsx("input", { className: "input flex-1", placeholder: "\uACFC\uC81C \uC81C\uBAA9 (\uC608: \uB514\uB524\uB3CC 1\uB2E8\uC6D0 3\uD398\uC774\uC9C0)", value: d.title, onChange: (e) => update(d.id, { title: e.target.value }) }), _jsx("button", { className: "text-stone-400 hover:text-red-500 px-2", onClick: () => removeRow(d.id), "aria-label": "\uC0AD\uC81C", children: "\u2715" })] }), _jsxs("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-2", children: [_jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uBD84\uB7C9" }), _jsx("input", { type: "number", min: 1, className: "input", value: d.target, onChange: (e) => update(d.id, { target: Number(e.target.value) }) })] }), _jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uB2E8\uC704" }), _jsx("input", { className: "input", value: d.unit, onChange: (e) => update(d.id, { unit: e.target.value }) })] }), _jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uB09C\uC774\uB3C4" }), _jsxs("select", { className: "input", value: d.difficulty, onChange: (e) => update(d.id, {
+                                                        difficulty: e.target.value,
+                                                    }), children: [_jsx("option", { value: "easy", children: "\u2B50 \uC26C\uC6C0 (5p)" }), _jsx("option", { value: "normal", children: "\u2B50\u2B50 \uBCF4\uD1B5 (10p)" }), _jsx("option", { value: "hard", children: "\u2B50\u2B50\u2B50 \uC5B4\uB824\uC6C0 (20p)" })] })] }), _jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uD3EC\uC778\uD2B8" }), _jsx("input", { type: "number", className: "input", value: d.points, onChange: (e) => update(d.id, { points: Number(e.target.value) }) })] })] }), _jsxs("div", { className: "mt-2 grid grid-cols-1 md:grid-cols-2 gap-2", children: [_jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uBD80\uC5F0 \uC124\uBA85 (\uC120\uD0DD)" }), _jsx("input", { className: "input", placeholder: "\uC608: \uB530\uB77C\uC77D\uC73C\uBA74\uC11C \uC4F0\uAE30 / \uB73B \uD544\uC218", value: d.note ?? "", onChange: (e) => update(d.id, { note: e.target.value || undefined }) })] }), _jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uD559\uC6D0 \uB9C8\uAC10\uC77C (\uC120\uD0DD)" }), _jsx("input", { type: "date", className: "input", value: d.due_date ?? "", onChange: (e) => update(d.id, { due_date: e.target.value || undefined }) })] })] }), _jsx(SubtaskEditor, { subtasks: d.subtasks, onChange: (list) => update(d.id, { subtasks: list }) }), _jsxs("label", { className: "flex items-center gap-2 text-sm mt-2", children: [_jsx("input", { type: "checkbox", checked: d.requires_verification ?? false, onChange: (e) => update(d.id, { requires_verification: e.target.checked }) }), "\uBCF4\uD638\uC790 \uD655\uC778 \uD6C4 \uD3EC\uC778\uD2B8 \uC9C0\uAE09 (\uD559\uC6D0 \uC219\uC81C\uC6A9)"] })] }, d.id));
+                    }), _jsx("button", { className: "btn-ghost w-full py-3", onClick: addRow, children: "+ \uACFC\uC81C \uCD94\uAC00" })] }), _jsxs("section", { className: "card mb-4 flex flex-col md:flex-row gap-2", children: [_jsx("input", { className: "input flex-1", placeholder: "\uD15C\uD50C\uB9BF \uC774\uB984 (\uC608: \uD3C9\uC77C \uAE30\uBCF8 \uC138\uD2B8)", value: templateName, onChange: (e) => setTemplateName(e.target.value) }), _jsx("button", { className: "btn-ghost", onClick: saveAsTemplate, disabled: !templateName.trim() || drafts.length === 0, children: "\uD604\uC7AC \uAD6C\uC131\uC744 \uD15C\uD50C\uB9BF\uC73C\uB85C \uC800\uC7A5" })] }), _jsx("div", { className: "sticky bottom-20 md:bottom-4 flex gap-2", children: _jsx("button", { className: "btn-primary flex-1 py-4 text-lg shadow-lg", onClick: distribute, disabled: saving, children: saving ? "배포 중…" : `🚀 오늘 과제 배포 (${drafts.length}개)` }) })] }));
+}
+function SubtaskEditor({ subtasks, onChange, }) {
+    const list = subtasks ?? [];
+    return (_jsxs("div", { className: "mt-2", children: [_jsxs("label", { className: "text-xs text-stone-500 dark:text-stone-400 flex items-center gap-2", children: ["\uC138\uBD80 \uCCB4\uD06C \uD56D\uBAA9", _jsx("button", { className: "text-xs text-brand-600 dark:text-brand-400", onClick: () => onChange([
+                            ...list,
+                            { id: crypto.randomUUID(), label: "", done: false },
+                        ]), children: "+ \uCD94\uAC00" })] }), list.length > 0 && (_jsx("div", { className: "space-y-1 mt-1", children: list.map((s, i) => (_jsxs("div", { className: "flex gap-1", children: [_jsx("input", { className: "input flex-1 py-1 text-sm", placeholder: `세부 항목 ${i + 1}`, value: s.label, onChange: (e) => {
+                                const next = list.map((x) => x.id === s.id ? { ...x, label: e.target.value } : x);
+                                onChange(next);
+                            } }), _jsx("button", { className: "text-stone-400 hover:text-red-500 px-2", onClick: () => {
+                                const next = list.filter((x) => x.id !== s.id);
+                                onChange(next.length > 0 ? next : undefined);
+                            }, children: "\u2715" })] }, s.id))) }))] }));
+}
+function PasteDialog({ defaultDate, onCancel, onImport, }) {
+    const [text, setText] = useState("");
+    const parsed = useMemo(() => parseHomework(text, defaultDate), [text, defaultDate]);
+    const SAMPLE = `4.20 월
+1. 13과 단어틀린것 3회쓰기,뜻필수
+2. 14과 단어암기 5회쓰기,뜻필수
+3.13과 낭독 5회연습후,영상올리기
+4.13과 워크북
+5.13과 text writing풀기
+(따라읽으면서 쓰기)
+
+그래머
+11과 워크북 풀기`;
+    return (_jsx("div", { className: "fixed inset-0 z-50 bg-stone-950/70 backdrop-blur flex items-start justify-center p-4 overflow-y-auto", children: _jsxs("div", { className: "card max-w-2xl w-full my-8", children: [_jsxs("div", { className: "flex items-center justify-between mb-2", children: [_jsx("h3", { className: "font-bold text-lg", children: "\uD83D\uDCCB \uC219\uC81C \uBD99\uC5EC\uB123\uAE30" }), _jsx("button", { className: "text-stone-400 hover:text-red-500", onClick: onCancel, children: "\u2715" })] }), _jsx("p", { className: "text-sm text-stone-500 dark:text-stone-400 mb-2", children: "\uD559\uC6D0\uC5D0\uC11C \uBC1B\uC740 \uC219\uC81C \uD14D\uC2A4\uD2B8\uB97C \uADF8\uB300\uB85C \uBD99\uC5EC\uB123\uC73C\uC138\uC694. \uB0A0\uC9DC\u00B7\uBD84\uB7C9\u00B7\uC138\uBD80\uD56D\uBAA9\uC744 \uC790\uB3D9 \uC778\uC2DD\uD569\uB2C8\uB2E4." }), _jsx("textarea", { className: "input min-h-[180px] font-mono text-sm", placeholder: SAMPLE, value: text, onChange: (e) => setText(e.target.value) }), text.trim().length === 0 ? (_jsx("button", { className: "btn-ghost w-full mt-2 text-sm", onClick: () => setText(SAMPLE), children: "\uC0D8\uD50C \uBD99\uC5EC\uB123\uAE30" })) : (_jsxs(_Fragment, { children: [_jsxs("div", { className: "mt-3", children: [_jsxs("div", { className: "text-sm font-semibold mb-1", children: ["\uBBF8\uB9AC\uBCF4\uAE30 \u2014 ", parsed.quests.length, "\uAC1C \uD018\uC2A4\uD2B8", parsed.date && ` · 날짜 ${parsed.date}`] }), _jsx("div", { className: "space-y-1 max-h-60 overflow-y-auto", children: parsed.quests.map((q, i) => (_jsxs("div", { className: "text-sm p-2 rounded-lg bg-stone-50 dark:bg-stone-800", children: [_jsxs("div", { className: "font-medium", children: [i + 1, ". ", q.title] }), _jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: [q.target, q.unit, q.note && ` · ${q.note}`, q.subtasks.length > 0 &&
+                                                        ` · 세부 ${q.subtasks.length}개`] })] }, q.id))) })] }), _jsxs("div", { className: "flex gap-2 mt-3", children: [_jsx("button", { className: "btn-ghost flex-1", onClick: onCancel, children: "\uCDE8\uC18C" }), _jsxs("button", { className: "btn-primary flex-1", onClick: () => onImport(parsed), disabled: parsed.quests.length === 0, children: [parsed.quests.length, "\uAC1C \uAC00\uC838\uC624\uAE30"] })] })] }))] }) }));
+}
