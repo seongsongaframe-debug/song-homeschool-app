@@ -11,3 +11,9 @@ export function shiftDate(iso, deltaDays) {
     d.setDate(d.getDate() + deltaDays);
     return d.toISOString().slice(0, 10);
 }
+// 짧은 마감일 표기: "MM.DD (요일)" — 인라인 메타 영역용.
+export function fmtDueShort(iso) {
+    const d = new Date(iso + "T00:00:00");
+    const days = ["일", "월", "화", "수", "목", "금", "토"];
+    return `${iso.slice(5).replace("-", ".")} (${days[d.getDay()]})`;
+}

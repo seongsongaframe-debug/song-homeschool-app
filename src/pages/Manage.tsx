@@ -5,7 +5,7 @@ import { useRewards, usePurchases } from "../store/useRewards";
 import { useAuth } from "../store/AuthContext";
 import { evaluatePerfectForToday, loadStudentQuests } from "../lib/quest-eval";
 import { manualSeedHyein, type SeedReason } from "../lib/auto-quests";
-import { todayISO } from "../lib/dates";
+import { todayISO, fmtDueShort } from "../lib/dates";
 import type { PointEntry, Purchase, Quest, Reward } from "../types";
 
 const KIND_LABEL: Record<Reward["kind"], string> = {
@@ -157,8 +157,7 @@ export default function Manage() {
         if (
           q.status === "done" &&
           q.requires_verification &&
-          !q.verified &&
-          !q.rejectedReason
+          !q.verified
         ) {
           queue.push(q);
         } else if (q.status === "done" && q.verified) {
@@ -431,7 +430,7 @@ export default function Manage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{q.title}</div>
                       <div className="text-xs text-stone-500 dark:text-stone-400">
-                        {s?.emoji} {s?.name} · 마감 {q.due_date.slice(5).replace("-", ".")} ·{" "}
+                        {s?.emoji} {s?.name} · 마감 {fmtDueShort(q.due_date)} ·{" "}
                         {q.target}
                         {q.unit} · +{q.points}p
                       </div>
@@ -494,8 +493,8 @@ export default function Manage() {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{q.title}</div>
                     <div className="text-xs text-stone-500 dark:text-stone-400">
-                      {s?.emoji} {s?.name} · 마감{" "}
-                      {q.due_date.slice(5).replace("-", ".")} · +{q.points}p
+                      {s?.emoji} {s?.name} · 마감 {fmtDueShort(q.due_date)} · +
+                      {q.points}p
                       {q.verifiedAt &&
                         ` · 확인 ${q.verifiedAt.slice(5, 16).replace("T", " ")}`}
                     </div>

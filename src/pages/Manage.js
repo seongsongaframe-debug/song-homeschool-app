@@ -6,7 +6,7 @@ import { useRewards, usePurchases } from "../store/useRewards";
 import { useAuth } from "../store/AuthContext";
 import { evaluatePerfectForToday, loadStudentQuests } from "../lib/quest-eval";
 import { manualSeedHyein } from "../lib/auto-quests";
-import { todayISO } from "../lib/dates";
+import { todayISO, fmtDueShort } from "../lib/dates";
 const KIND_LABEL = {
     treat: "간식",
     privilege: "특권",
@@ -141,8 +141,7 @@ export default function Manage() {
                     continue;
                 if (q.status === "done" &&
                     q.requires_verification &&
-                    !q.verified &&
-                    !q.rejectedReason) {
+                    !q.verified) {
                     queue.push(q);
                 }
                 else if (q.status === "done" && q.verified) {
@@ -252,13 +251,13 @@ export default function Manage() {
                                         ? `+${grantAmount}p 지급`
                                         : `${grantAmount}p 차감` })] }), grantToast && (_jsxs("div", { className: "mt-2 text-sm text-emerald-600 dark:text-emerald-400", children: ["\u2713 ", grantToast] }))] }), verifyQueue.length > 0 && (_jsxs("section", { className: "card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800", children: [_jsx("div", { className: "flex items-center justify-between mb-2", children: _jsxs("h3", { className: "font-bold", children: ["\uD83D\uDCDD \uD018\uC2A4\uD2B8 \uD655\uC778 \uB300\uAE30 (", verifyQueue.length, ")"] }) }), _jsx("div", { className: "space-y-2", children: verifyQueue.map((q) => {
                             const s = students.find((x) => x.id === q.student_id);
-                            return (_jsx("div", { className: "border-t border-amber-200 dark:border-amber-800 pt-2", children: _jsxs("div", { className: "flex items-center gap-2", children: [_jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: "font-medium truncate", children: q.title }), _jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: [s?.emoji, " ", s?.name, " \u00B7 \uB9C8\uAC10 ", q.due_date.slice(5).replace("-", "."), " \u00B7", " ", q.target, q.unit, " \u00B7 +", q.points, "p"] }), q.note && (_jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400 italic", children: ["\uD83D\uDCA1 ", q.note] })), q.subtasks && q.subtasks.length > 0 && (_jsx("div", { className: "text-xs text-stone-500 dark:text-stone-400 mt-1", children: q.subtasks.map((s) => (_jsxs("span", { className: "mr-2", children: [s.done ? "✅" : "☐", " ", s.label] }, s.id))) }))] }), _jsx("button", { className: "btn-primary text-sm", onClick: () => verifyQuest(q), children: "\uD655\uC778 \u2713" }), _jsx("button", { className: "btn-ghost text-sm", onClick: () => {
+                            return (_jsx("div", { className: "border-t border-amber-200 dark:border-amber-800 pt-2", children: _jsxs("div", { className: "flex items-center gap-2", children: [_jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: "font-medium truncate", children: q.title }), _jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: [s?.emoji, " ", s?.name, " \u00B7 \uB9C8\uAC10 ", fmtDueShort(q.due_date), " \u00B7", " ", q.target, q.unit, " \u00B7 +", q.points, "p"] }), q.note && (_jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400 italic", children: ["\uD83D\uDCA1 ", q.note] })), q.subtasks && q.subtasks.length > 0 && (_jsx("div", { className: "text-xs text-stone-500 dark:text-stone-400 mt-1", children: q.subtasks.map((s) => (_jsxs("span", { className: "mr-2", children: [s.done ? "✅" : "☐", " ", s.label] }, s.id))) }))] }), _jsx("button", { className: "btn-primary text-sm", onClick: () => verifyQuest(q), children: "\uD655\uC778 \u2713" }), _jsx("button", { className: "btn-ghost text-sm", onClick: () => {
                                                 setRejectTarget(q);
                                                 setRejectReason("");
                                             }, children: "\uB2E4\uC2DC" })] }) }, q.id));
                         }) })] })), recentVerified.length > 0 && (_jsxs("section", { className: "card mb-4", children: [_jsxs("div", { className: "flex items-center justify-between mb-2", children: [_jsxs("h3", { className: "font-bold", children: ["\u2705 \uCD5C\uADFC \uD655\uC778 \uC644\uB8CC (", recentVerified.length, ")"] }), _jsx("span", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uC2E4\uC218\uB85C \uD655\uC778\uD55C \uD56D\uBAA9\uC740 \"\uB418\uB3CC\uB9AC\uAE30\" \uAC00\uB2A5" })] }), _jsx("div", { className: "space-y-2", children: recentVerified.map((q) => {
                             const s = students.find((x) => x.id === q.student_id);
-                            return (_jsxs("div", { className: "border-t border-stone-200 dark:border-stone-800 pt-2 flex items-center gap-2", children: [_jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: "font-medium truncate", children: q.title }), _jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: [s?.emoji, " ", s?.name, " \u00B7 \uB9C8\uAC10", " ", q.due_date.slice(5).replace("-", "."), " \u00B7 +", q.points, "p", q.verifiedAt &&
+                            return (_jsxs("div", { className: "border-t border-stone-200 dark:border-stone-800 pt-2 flex items-center gap-2", children: [_jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: "font-medium truncate", children: q.title }), _jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: [s?.emoji, " ", s?.name, " \u00B7 \uB9C8\uAC10 ", fmtDueShort(q.due_date), " \u00B7 +", q.points, "p", q.verifiedAt &&
                                                         ` · 확인 ${q.verifiedAt.slice(5, 16).replace("T", " ")}`] })] }), _jsx("button", { className: "btn-ghost text-sm", onClick: () => unverifyQuest(q), children: "\u21BA \uB418\uB3CC\uB9AC\uAE30" })] }, q.id));
                         }) })] })), _jsxs("section", { className: "card mb-4", children: [_jsx("div", { className: "flex items-center justify-between mb-2", children: _jsxs("h3", { className: "font-bold", children: ["\u23F3 \uBCF4\uC0C1 \uC2B9\uC778 \uB300\uAE30 (", pending.length, ")"] }) }), _jsxs("div", { className: "space-y-2", children: [pending.length === 0 && (_jsx("div", { className: "text-sm text-stone-400 text-center py-4", children: "\uB300\uAE30 \uC911\uC778 \uC694\uCCAD\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." })), pending.map((p) => {
                                 const r = rewards.find((x) => x.id === p.reward_id);

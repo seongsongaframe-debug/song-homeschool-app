@@ -4,7 +4,7 @@ import { useData } from "../store/DataContext";
 import { StudentTabs } from "../components/StudentTabs";
 import { AchievementRing } from "../components/AchievementRing";
 import { emitPointBurst } from "../components/PointBurst";
-import { fmtKDate, todayISO } from "../lib/dates";
+import { fmtDueShort, fmtKDate, todayISO } from "../lib/dates";
 import { storage, KEYS } from "../storage";
 import { calcPerfectDayBonus, calcStreakBonus, computeStreak, usePoints, } from "../store/usePoints";
 import { tierFor, progressToNext } from "../lib/levels";
@@ -48,6 +48,7 @@ export default function QuestBoard() {
             status: "done",
             completedAt: new Date().toISOString(),
             subtasks: updatedSubtasks ?? q.subtasks,
+            rejectedReason: undefined,
         };
         await save(next);
         await handlePostCompletion(next);
@@ -166,7 +167,7 @@ function QuestCard({ quest, today, subject, onToggleMain, onToggleSubtask, }) {
             return;
         onToggleMain(quest, e);
     };
-    const dueLabel = quest.due_date.slice(5).replace("-", ".");
+    const dueLabel = fmtDueShort(quest.due_date);
     const dueChipStyle = overdue
         ? { backgroundColor: "#fee2e2", color: "#991b1b" }
         : dueToday
