@@ -31,6 +31,46 @@ export default function Manage() {
   const [showNew, setShowNew] = useState(false);
   const [pinInput, setPinInput] = useState("");
 
+  // ----- 직접 포인트 지급 폼 -----
+  const [grantStudentId, setGrantStudentId] = useState(students[0]?.id ?? "");
+  const [grantAmount, setGrantAmount] = useState<number>(10);
+  const [grantNote, setGrantNote] = useState("");
+  const [grantBusy, setGrantBusy] = useState(false);
+  const [grantToast, setGrantToast] = useState<string | null>(null);
+
+  async function grantPoints() {
+    if (!grantStudentId || grantAmount === 0 || !grantNote.trim()) return;
+    if (grantAmount < 0) {
+      const ok = confirm(
+        `${grantAmount}p 차감합니다. 계속할까요?\n\n사유: ${grantNote}`
+      );
+      if (!ok) return;
+    }
+    setGrantBusy(true);
+    const ledger =
+      (await storage.read<PointEntry[]>(KEYS.pointLedger(grantStudentId))) ?? [];
+    const next: PointEntry[] = [
+      ...ledger,
+      {
+        id: crypto.randomUUID(),
+        student_id: grantStudentId,
+        date: todayISO(),
+        delta: grantAmount,
+        reason: "manual_adjust",
+        note: grantNote.trim(),
+      },
+    ];
+    await storage.write(KEYS.pointLedger(grantStudentId), next);
+    const s = students.find((x) => x.id === grantStudentId);
+    setGrantToast(
+      `${s?.emoji ?? ""} ${s?.name ?? ""} 에게 ${grantAmount > 0 ? "+" : ""}${grantAmount}p ${grantAmount > 0 ? "지급" : "차감"} 완료`
+    );
+    setGrantNote("");
+    setGrantAmount(10);
+    setGrantBusy(false);
+    setTimeout(() => setGrantToast(null), 3000);
+  }
+
   async function approve(p: Purchase) {
     await savePurchase({
       ...p,
@@ -257,6 +297,75 @@ export default function Manage() {
             >
               PIN 설정
             </button>
+          </div>
+        )}
+      </section>
+
+      <section className="card mb-4">
+        <h3 className="font-bold mb-2">💰 포인트 직접 지급 / 차감</h3>
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
+          칭찬·가사 도움·동생 챙김 등 일상에서 즉석 보상. 음수는 차감.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div>
+            <label className="text-xs text-stone-500 dark:text-stone-400">대상</label>
+            <select
+              className="input"
+              value={grantStudentId}
+              onChange={(e) => setGrantStudentId(e.target.value)}
+            >
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.emoji} {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-stone-500 dark:text-stone-400">포인트</label>
+            <input
+              type="number"
+              step={5}
+              className="input"
+              value={grantAmount}
+              onChange={(e) => setGrantAmount(Number(e.target.value))}
+            />
+          </div>
+          <div className="col-span-2 md:col-span-2">
+            <label className="text-xs text-stone-500 dark:text-stone-400">사유 (필수)</label>
+            <input
+              className="input"
+              placeholder="예: 동생 잘 챙겨줌"
+              value={grantNote}
+              onChange={(e) => setGrantNote(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {[10, 20, 50, 100, -10].map((amt) => (
+            <button
+              key={amt}
+              className="chip bg-stone-100 dark:bg-stone-800 hover:brightness-95"
+              onClick={() => setGrantAmount(amt)}
+            >
+              {amt > 0 ? `+${amt}` : amt}p
+            </button>
+          ))}
+          <button
+            className="btn-primary ml-auto"
+            disabled={grantBusy || grantAmount === 0 || !grantNote.trim()}
+            onClick={grantPoints}
+          >
+            {grantBusy
+              ? "처리 중…"
+              : grantAmount > 0
+              ? `+${grantAmount}p 지급`
+              : `${grantAmount}p 차감`}
+          </button>
+        </div>
+        {grantToast && (
+          <div className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">
+            ✓ {grantToast}
           </div>
         )}
       </section>
