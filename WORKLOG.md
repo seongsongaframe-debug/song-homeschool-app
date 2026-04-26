@@ -1,8 +1,9 @@
 # 송홈스쿨관리앱 — 작업로그
 
 ## 현재 상태
-- **단계**: 세인 20건 + 혜인 8건 = 각 1000p. 보호자 임의 포인트 지급/차감 가능.
-- **마지막 작업**: 2026-04-26 · 보호자 직접 포인트 지급/차감 기능 (manual_adjust).
+- **단계**: 세인 20건 + 혜인 8건 weekly = 각 1000p. 세인 상점 4건 (개굴닌자 활성, 메탈카드봇·솔가레오·음번 비활성/획득 완료). 솔가레오·음번 실사 이미지 호스팅.
+- **마지막 작업**: 2026-04-26 · 세인 포켓몬 피규어 보상 3건 등록·정리·이미지 등록.
+- **다음 할 일**: (1) 매주 토요일 — 눈높이 + 학원 숙제 재배포. (2) 홈 PC 작업한 `auto-quests.ts` (혜인 주간 자동 부여) 동작 검증. (3) 리포 정리 — `src/**/*.js`, `*.tsbuildinfo` 가 tsc emit 으로 들어와 있어 .gitignore 추가 권장.
 - **다음 할 일**: 매주 토요일 — 눈높이 + 학원 숙제 재배포 (`deploy-noonopi.mjs` + 학원별 텍스트 붙여넣기).
 
 ## 📌 핵심 관리 정보 (Reference)
@@ -90,6 +91,7 @@ service cloud.firestore {
 
 | 날짜 | 작업 | 산출물 / 커밋 |
 |------|------|--------|
+| 2026-04-26 | **세인 포켓몬 피규어 보상 + 실사 이미지** — (a) 세인 전용 3건 등록: 개굴닌자 550p / 솔가레오 1600p / 음번 1800p (네이버 스마트스토어 봇 차단으로 자동 추출 실패 → 이모지로 등록). (b) 솔가레오·음번은 이미 부모가 사준 상품 → `active=false` + description 에 "✅ 이미 획득함" 표기로 기록 보존. (c) 사용자 스샷의 실사 사진 2장을 `public/images/rewards/sein-{solgaleo,noivern}.png` 로 푸시 후 GitHub Pages 절대 URL 로 image_url 등록 → 보호자 관리 화면에 사진 표시. 향후 보상 이미지는 동일 폴더 + 이 패턴으로 추가. | 커밋 `7d2b60c`·`67180e3`·`0213159` · `scripts/{add-sein-rewards,update-sein-rewards-fulfilled,update-pokemon-images}.mjs` · `public/images/rewards/` |
 | 2026-04-26 | **포인트 직접 지급/차감** — Manage 화면 상단에 "💰 포인트 직접 지급" 폼. 학생 선택 + 포인트(±) + 사유(필수) + 빠른 단가 칩(+10/+20/+50/+100/-10). 음수 입력 시 confirm. ledger 에 `manual_adjust` reason 으로 즉시 반영. 일상 칭찬·가사 도움·동생 챙김 등 즉석 보상 가능. | `src/pages/Manage.tsx` |
 | 2026-04-25 | **확인 되돌리기 기능** — Manage 화면에 "✅ 최근 확인 완료" 섹션 추가. verified 퀘스트 15건 노출, 각 항목에 "↺ 되돌리기" 버튼. 클릭 시 verified=false + ledger quest_complete 제거 + 완주 상태 깨졌으면 perfect_day·streak_bonus 회수 + 확인 대기 큐로 복귀. | `src/pages/Manage.tsx` |
 | 2026-04-25 | **혜인 weekly 정리** — 혜인 수학 3건 삭제 (혜인은 수학 숙제 없음). 4/21 마감으로 overdue 였던 6건(파닉스 4 + 브릭스리딩 2) → 4/28로 이동. 1000p 재배분: 파닉스 4 × 100p + 브릭스리딩 2 × 100p + 눈높이 2 × 200p = 1000p. | `scripts/fix-hyein-week.mjs` |
@@ -142,6 +144,18 @@ service cloud.firestore {
 - 몬스터 도감 (이모지 기반, 포켓몬 IP 대체. 알 구매 → 부화 → 진화)
 - 남매 랭킹 (주간 포인트·퀘스트 완료수·스트릭 경쟁 보드)
 - 우선순위: **낮음** (실사용 피드백 후 착수)
+
+### 7. 리포 잡 파일 정리
+- 홈 PC 에서 `tsc` 가 emit 모드로 돌면서 `src/**/*.js` 50여 개와 `tsconfig.tsbuildinfo` 가 git 에 들어옴 (커밋 `7d2b60c`).
+- 빌드/배포에는 영향 없으나 리포가 지저분.
+- 해결: `.gitignore` 에 `*.tsbuildinfo` + `src/**/*.js` 추가 → `git rm --cached` 로 인덱스 제거 → 커밋.
+- 우선순위: **낮음** (잡음 정리)
+
+### 8. 홈 PC 추가 모듈 동작 검증
+- `src/lib/auto-quests.ts` (혜인 주간 자동 퀘스트 부여, `manualSeedHyein` / `maybeAutoSeedHyein`) — App.tsx 의 `useEffect` 에서 `dataReady` 후 호출됨.
+- `src/lib/dates.ts` 의 `fmtDueShort` (마감일 짧은 표기 헬퍼).
+- 실제 동작·로깅 확인 미진행.
+- 우선순위: **중**
 
 ### 6. 학생 프로필 편집 UI
 - 현재 `seed.ts` 직접 수정으로만 세인/혜인 이모지·색상 변경 가능.
