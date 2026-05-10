@@ -4,9 +4,10 @@ import { useData } from "../store/DataContext";
 import { StudentTabs } from "../components/StudentTabs";
 import { AchievementRing } from "../components/AchievementRing";
 import { emitPointBurst } from "../components/PointBurst";
-import { fmtDueShort, fmtKDate, todayISO } from "../lib/dates";
+import { fmtDueShort, fmtKDate, getWeekSatToFri, shiftDate, todayISO } from "../lib/dates";
 import { storage, KEYS } from "../storage";
-import { calcPerfectDayBonus, calcStreakBonus, computeStreak, usePoints, } from "../store/usePoints";
+import { calcPerfectDayBonus, calcStreakBonus, computeStreak, sumAwaitingPoints, sumPointsOn, usePoints, } from "../store/usePoints";
+import { RecentPointsCard } from "../components/RecentPointsCard";
 import { tierFor, progressToNext } from "../lib/levels";
 import { useQuests } from "../store/useQuests";
 import { classifyQuests, evaluatePerfectForToday, hasPerfectDayAwarded, loadStudentQuests, } from "../lib/quest-eval";
@@ -31,7 +32,21 @@ export default function QuestBoard() {
     const buckets = useMemo(() => classifyQuests(quests, today), [quests, today]);
     const totalPending = buckets.overdue.length + buckets.dueToday.length + buckets.upcoming.length;
     const totalToShow = totalPending + buckets.done.length;
-    const percent = totalToShow === 0 ? 0 : buckets.done.length / totalToShow;
+    // 진행률은 이번 주(토~금) 마감 퀘스트만 대상으로 계산.
+    const week = useMemo(() => getWeekSatToFri(today), [today]);
+    const weekStats = useMemo(() => {
+        let total = 0;
+        let done = 0;
+        for (const q of quests) {
+            if (q.due_date < week.start || q.due_date > week.end)
+                continue;
+            total += 1;
+            if (q.status === "done")
+                done += 1;
+        }
+        return { total, done };
+    }, [quests, week.start, week.end]);
+    const percent = weekStats.total === 0 ? 0 : weekStats.done / weekStats.total;
     const [streak, setStreak] = useState(0);
     useEffect(() => {
         (async () => {
@@ -42,6 +57,10 @@ export default function QuestBoard() {
     const tier = tierFor(balance);
     const lv = progressToNext(balance);
     const awaitingVerify = quests.filter((q) => q.status === "done" && q.requires_verification && !q.verified);
+    const yesterday = shiftDate(today, -1);
+    const todayPoints = useMemo(() => sumPointsOn(ledger, today), [ledger, today]);
+    const yesterdayPoints = useMemo(() => sumPointsOn(ledger, yesterday), [ledger, yesterday]);
+    const awaitingPoints = useMemo(() => sumAwaitingPoints(quests), [quests]);
     async function completeQuest(q, updatedSubtasks) {
         const next = {
             ...q,
@@ -113,11 +132,20 @@ export default function QuestBoard() {
             await revertQuest(q);
             return;
         }
+        if (q.text_response_prompt && !(q.text_response ?? "").trim()) {
+            alert(q.text_response_prompt);
+            return;
+        }
         const rect = evt.currentTarget.getBoundingClientRect();
         await completeQuest(q);
         if (!q.requires_verification) {
             emitPointBurst(rect.left + rect.width / 2, rect.top + 20, q.points);
         }
+    }
+    async function handleTextResponseChange(q, value) {
+        if ((q.text_response ?? "") === value)
+            return;
+        await save({ ...q, text_response: value });
     }
     async function handleSubtaskToggle(q, subtaskId, evt) {
         if (!q.subtasks)
@@ -141,7 +169,7 @@ export default function QuestBoard() {
     }
     if (!studentId)
         return null;
-    return (_jsxs("div", { className: "max-w-3xl mx-auto p-4", children: [_jsxs("header", { className: "mb-4", children: [_jsx("h1", { className: "text-2xl font-bold", children: "\uD018\uC2A4\uD2B8 \uBCF4\uB4DC" }), _jsx("p", { className: "text-stone-500 dark:text-stone-400", children: fmtKDate(today) })] }), _jsx(StudentTabs, { students: students, selected: studentId, onSelect: setStudentId }), _jsxs("section", { className: "card mb-4 flex items-center gap-4", children: [_jsx(AchievementRing, { percent: percent, label: `${buckets.done.length} / ${totalToShow}`, sublabel: "\uC9C4\uD589\uB960", glow: percent >= 1 && totalToShow > 0 }), _jsxs("div", { className: "flex-1 space-y-2", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("span", { className: "text-3xl", children: tier.icon }), _jsxs("div", { children: [_jsxs("div", { className: "font-bold", children: ["Lv.", tier.level, " ", tier.title] }), _jsx("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: lv.next ? `다음 "${lv.next.title}"까지 ${lv.delta}p` : "최고 레벨 🎉" })] })] }), _jsx("div", { className: "w-full bg-stone-200 dark:bg-stone-800 rounded-full h-2 overflow-hidden", children: _jsx("div", { className: "h-full bg-brand-500 transition-all", style: { width: `${lv.percent * 100}%` } }) }), _jsxs("div", { className: "flex items-center justify-between text-sm", children: [_jsxs("div", { children: ["\uD83D\uDCB0 ", _jsx("span", { className: "font-bold text-lg", children: balance }), "p"] }), _jsxs("div", { children: ["\uD83D\uDD25 ", _jsx("span", { className: "font-bold", children: streak }), "\uC77C \uC5F0\uC18D"] })] })] })] }), awaitingVerify.length > 0 && (_jsxs("div", { className: "card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-sm", children: ["\u23F3 \uBCF4\uD638\uC790 \uD655\uC778 \uB300\uAE30 \uC911 ", _jsxs("b", { children: [awaitingVerify.length, "\uAC1C"] }), " \u2014 \uD655\uC778\uB418\uBA74 \uD3EC\uC778\uD2B8\uAC00 \uB4E4\uC5B4\uC640\uC694."] })), totalToShow === 0 && (_jsx("div", { className: "card text-center py-10 text-stone-500 dark:text-stone-400", children: "\uBC1B\uC740 \uACFC\uC81C\uAC00 \uC5C6\uC5B4\uC694. \uBCF4\uD638\uC790\uC5D0\uAC8C \uBC30\uD3EC \uC694\uCCAD!" })), buckets.overdue.length > 0 && (_jsx(Section, { title: "\uD83D\uDEA8 \uB9C8\uAC10 \uC9C0\uB0A8", count: buckets.overdue.length, tone: "red", children: buckets.overdue.map((q) => (_jsx(QuestCard, { quest: q, today: today, subject: q.subject_id ? subjectMap.get(q.subject_id) : undefined, onToggleMain: handleMainToggle, onToggleSubtask: handleSubtaskToggle }, q.id))) })), buckets.dueToday.length > 0 && (_jsx(Section, { title: "\uD83C\uDFAF \uC624\uB298 \uB9C8\uAC10", count: buckets.dueToday.length, tone: "brand", children: buckets.dueToday.map((q) => (_jsx(QuestCard, { quest: q, today: today, subject: q.subject_id ? subjectMap.get(q.subject_id) : undefined, onToggleMain: handleMainToggle, onToggleSubtask: handleSubtaskToggle }, q.id))) })), buckets.upcoming.length > 0 && (_jsx(Section, { title: "\uD83D\uDCC5 \uACE7 \uB9C8\uAC10", count: buckets.upcoming.length, tone: "muted", children: buckets.upcoming.map((q) => (_jsx(QuestCard, { quest: q, today: today, subject: q.subject_id ? subjectMap.get(q.subject_id) : undefined, onToggleMain: handleMainToggle, onToggleSubtask: handleSubtaskToggle }, q.id))) })), buckets.done.length > 0 && (_jsx(Section, { title: "\u2705 \uC644\uB8CC", count: buckets.done.length, tone: "muted", dim: true, children: buckets.done.map((q) => (_jsx(QuestCard, { quest: q, today: today, subject: q.subject_id ? subjectMap.get(q.subject_id) : undefined, onToggleMain: handleMainToggle, onToggleSubtask: handleSubtaskToggle }, q.id))) })), totalPending === 0 && totalToShow > 0 && (_jsxs("div", { className: "card text-center py-6 bg-gradient-to-br from-amber-100 to-yellow-50 dark:from-amber-900/40 dark:to-amber-950 border-amber-200 dark:border-amber-800", children: [_jsx("div", { className: "text-4xl mb-2", children: "\uD83C\uDF89" }), _jsx("div", { className: "font-bold text-lg", children: "\uB0A8\uC740 \uD018\uC2A4\uD2B8 \uC5C6\uC74C!" }), _jsxs("div", { className: "text-sm text-stone-600 dark:text-stone-300 mt-1", children: ["\uC644\uC8FC \uBCF4\uB108\uC2A4 +30p \u00B7 \uC5F0\uC18D ", streak, "\uC77C (+", calcStreakBonus(streak), "p)"] })] }))] }));
+    return (_jsxs("div", { className: "max-w-3xl mx-auto p-4", children: [_jsxs("header", { className: "mb-4", children: [_jsx("h1", { className: "text-2xl font-bold", children: "\uD018\uC2A4\uD2B8 \uBCF4\uB4DC" }), _jsx("p", { className: "text-stone-500 dark:text-stone-400", children: fmtKDate(today) })] }), _jsx(StudentTabs, { students: students, selected: studentId, onSelect: setStudentId }), _jsxs("section", { className: "card mb-4 flex items-center gap-4", children: [_jsx(AchievementRing, { percent: percent, label: `${weekStats.done} / ${weekStats.total}`, sublabel: "\uC774\uBC88 \uC8FC (\uD1A0~\uAE08)", glow: percent >= 1 && weekStats.total > 0 }), _jsxs("div", { className: "flex-1 space-y-2", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("span", { className: "text-3xl", children: tier.icon }), _jsxs("div", { children: [_jsxs("div", { className: "font-bold", children: ["Lv.", tier.level, " ", tier.title] }), _jsx("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: lv.next ? `다음 "${lv.next.title}"까지 ${lv.delta}p` : "최고 레벨 🎉" })] })] }), _jsx("div", { className: "w-full bg-stone-200 dark:bg-stone-800 rounded-full h-2 overflow-hidden", children: _jsx("div", { className: "h-full bg-brand-500 transition-all", style: { width: `${lv.percent * 100}%` } }) }), _jsxs("div", { className: "flex items-center justify-between text-sm", children: [_jsxs("div", { children: ["\uD83D\uDCB0 ", _jsx("span", { className: "font-bold text-lg", children: balance }), "p"] }), _jsxs("div", { children: ["\uD83D\uDD25 ", _jsx("span", { className: "font-bold", children: streak }), "\uC77C \uC5F0\uC18D"] })] })] })] }), _jsx(RecentPointsCard, { todayPoints: todayPoints, yesterdayPoints: yesterdayPoints, awaitingPoints: awaitingPoints }), awaitingVerify.length > 0 && (_jsxs("div", { className: "card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-sm", children: ["\u23F3 \uBCF4\uD638\uC790 \uD655\uC778 \uB300\uAE30 \uC911 ", _jsxs("b", { children: [awaitingVerify.length, "\uAC1C"] }), " \u2014 \uD655\uC778\uB418\uBA74 \uD3EC\uC778\uD2B8\uAC00 \uB4E4\uC5B4\uC640\uC694."] })), totalToShow === 0 && (_jsx("div", { className: "card text-center py-10 text-stone-500 dark:text-stone-400", children: "\uBC1B\uC740 \uACFC\uC81C\uAC00 \uC5C6\uC5B4\uC694. \uBCF4\uD638\uC790\uC5D0\uAC8C \uBC30\uD3EC \uC694\uCCAD!" })), buckets.overdue.length > 0 && (_jsx(Section, { title: "\uD83D\uDEA8 \uB9C8\uAC10 \uC9C0\uB0A8", count: buckets.overdue.length, tone: "red", children: buckets.overdue.map((q) => (_jsx(QuestCard, { quest: q, today: today, subject: q.subject_id ? subjectMap.get(q.subject_id) : undefined, onToggleMain: handleMainToggle, onToggleSubtask: handleSubtaskToggle, onTextResponseChange: handleTextResponseChange }, q.id))) })), buckets.dueToday.length > 0 && (_jsx(Section, { title: "\uD83C\uDFAF \uC624\uB298 \uB9C8\uAC10", count: buckets.dueToday.length, tone: "brand", children: buckets.dueToday.map((q) => (_jsx(QuestCard, { quest: q, today: today, subject: q.subject_id ? subjectMap.get(q.subject_id) : undefined, onToggleMain: handleMainToggle, onToggleSubtask: handleSubtaskToggle, onTextResponseChange: handleTextResponseChange }, q.id))) })), buckets.upcoming.length > 0 && (_jsx(Section, { title: "\uD83D\uDCC5 \uACE7 \uB9C8\uAC10", count: buckets.upcoming.length, tone: "muted", children: buckets.upcoming.map((q) => (_jsx(QuestCard, { quest: q, today: today, subject: q.subject_id ? subjectMap.get(q.subject_id) : undefined, onToggleMain: handleMainToggle, onToggleSubtask: handleSubtaskToggle, onTextResponseChange: handleTextResponseChange }, q.id))) })), buckets.done.length > 0 && (_jsx(Section, { title: "\u2705 \uC644\uB8CC", count: buckets.done.length, tone: "muted", dim: true, children: buckets.done.map((q) => (_jsx(QuestCard, { quest: q, today: today, subject: q.subject_id ? subjectMap.get(q.subject_id) : undefined, onToggleMain: handleMainToggle, onToggleSubtask: handleSubtaskToggle, onTextResponseChange: handleTextResponseChange }, q.id))) })), totalPending === 0 && totalToShow > 0 && (_jsxs("div", { className: "card text-center py-6 bg-gradient-to-br from-amber-100 to-yellow-50 dark:from-amber-900/40 dark:to-amber-950 border-amber-200 dark:border-amber-800", children: [_jsx("div", { className: "text-4xl mb-2", children: "\uD83C\uDF89" }), _jsx("div", { className: "font-bold text-lg", children: "\uB0A8\uC740 \uD018\uC2A4\uD2B8 \uC5C6\uC74C!" }), _jsxs("div", { className: "text-sm text-stone-600 dark:text-stone-300 mt-1", children: ["\uC644\uC8FC \uBCF4\uB108\uC2A4 +30p \u00B7 \uC5F0\uC18D ", streak, "\uC77C (+", calcStreakBonus(streak), "p)"] })] }))] }));
 }
 function Section({ title, count, tone, dim, children, }) {
     const color = tone === "red"
@@ -151,9 +179,15 @@ function Section({ title, count, tone, dim, children, }) {
             : "text-stone-500 dark:text-stone-400";
     return (_jsxs("section", { className: `mb-4 ${dim ? "opacity-80" : ""}`, children: [_jsxs("h2", { className: `font-bold mb-2 ${color}`, children: [title, " ", _jsxs("span", { className: "text-stone-400", children: ["(", count, ")"] })] }), _jsx("div", { className: "space-y-2", children: children })] }));
 }
-function QuestCard({ quest, today, subject, onToggleMain, onToggleSubtask, }) {
+function QuestCard({ quest, today, subject, onToggleMain, onToggleSubtask, onTextResponseChange, }) {
     const done = quest.status === "done";
     const hasSubs = !!quest.subtasks && quest.subtasks.length > 0;
+    const hasTextPrompt = !!quest.text_response_prompt;
+    const [textDraft, setTextDraft] = useState(quest.text_response ?? "");
+    // 외부에서 quest.text_response 가 갱신되면 동기화 (다른 기기에서 입력 후 전파된 경우 등).
+    useEffect(() => {
+        setTextDraft(quest.text_response ?? "");
+    }, [quest.text_response]);
     const awaitingVerify = done && quest.requires_verification && !quest.verified;
     const verified = done && quest.verified;
     const rejected = !!quest.rejectedReason;
@@ -174,7 +208,7 @@ function QuestCard({ quest, today, subject, onToggleMain, onToggleSubtask, }) {
             ? { backgroundColor: "#fed7aa", color: "#9a3412" }
             : { backgroundColor: "#e0e7ff", color: "#3730a3" };
     const dueChipText = overdue ? `⚠️ ${dueLabel} 지남` : dueToday ? `🔥 오늘 마감` : `📅 ${dueLabel} 마감`;
-    return (_jsxs("div", { className: `card transition ${done ? "" : "hover:shadow-md"} ${hasSubs || locked ? "" : "cursor-pointer"} ${overdue ? "border-red-300 dark:border-red-800" : ""}`, onClick: handleClick, children: [_jsxs("div", { className: "flex items-center gap-3", children: [_jsx("div", { className: `w-12 h-12 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 transition border-2 ${done
+    return (_jsxs("div", { className: `card transition ${done ? "" : "hover:shadow-md"} ${hasSubs || hasTextPrompt || locked ? "" : "cursor-pointer"} ${overdue ? "border-red-300 dark:border-red-800" : ""}`, onClick: handleClick, children: [_jsxs("div", { className: "flex items-center gap-3", children: [_jsx("div", { className: `w-12 h-12 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 transition border-2 ${done
                             ? awaitingVerify
                                 ? "bg-amber-500 border-amber-500 text-white"
                                 : "bg-emerald-500 border-emerald-500 text-white"
@@ -192,7 +226,7 @@ function QuestCard({ quest, today, subject, onToggleMain, onToggleSubtask, }) {
                         ? "cursor-not-allowed"
                         : "hover:bg-stone-50 dark:hover:bg-stone-800"}`, children: [_jsx("div", { className: `w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition ${s.done
                                 ? "bg-emerald-500 border-emerald-500 text-white"
-                                : "border-stone-300 dark:border-stone-600"}`, children: s.done && "✓" }), _jsx("span", { className: `text-sm ${s.done ? "line-through text-stone-400" : ""}`, children: s.label })] }, s.id))) }))] }));
+                                : "border-stone-300 dark:border-stone-600"}`, children: s.done && "✓" }), _jsx("span", { className: `text-sm ${s.done ? "line-through text-stone-400" : ""}`, children: s.label })] }, s.id))) })), hasTextPrompt && (_jsxs("div", { className: "mt-3", onClick: (e) => e.stopPropagation(), children: [_jsxs("label", { className: "block text-xs text-stone-600 dark:text-stone-300 mb-1", children: ["\u270D\uFE0F ", quest.text_response_prompt] }), _jsx("textarea", { className: "input w-full text-sm", rows: 2, placeholder: "\uC608: \uAC70\uC2E4 \uC2DD\uD0C1, \uB0B4 \uBC29 \uCC45\uC0C1\u2026", value: textDraft, disabled: locked, onChange: (e) => setTextDraft(e.target.value), onBlur: () => onTextResponseChange(quest, textDraft.trim()) }), !locked && !done && !textDraft.trim() && (_jsx("div", { className: "text-[11px] text-amber-600 dark:text-amber-400 mt-1", children: "\uC644\uB8CC \uCCB4\uD06C\uD558\uB824\uBA74 \uBA3C\uC800 \uC5B4\uB514 \uCCAD\uC18C\uD588\uB294\uC9C0 \uC801\uC5B4\uC8FC\uC138\uC694" }))] }))] }));
 }
 async function buildPerfectsMap(studentId) {
     const ledger = (await storage.read(KEYS.pointLedger(studentId))) ?? [];

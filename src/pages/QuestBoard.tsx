@@ -3,14 +3,17 @@ import { useData } from "../store/DataContext";
 import { StudentTabs } from "../components/StudentTabs";
 import { AchievementRing } from "../components/AchievementRing";
 import { emitPointBurst } from "../components/PointBurst";
-import { fmtDueShort, fmtKDate, todayISO } from "../lib/dates";
+import { fmtDueShort, fmtKDate, getWeekSatToFri, shiftDate, todayISO } from "../lib/dates";
 import { storage, KEYS } from "../storage";
 import {
   calcPerfectDayBonus,
   calcStreakBonus,
   computeStreak,
+  sumAwaitingPoints,
+  sumPointsOn,
   usePoints,
 } from "../store/usePoints";
+import { RecentPointsCard } from "../components/RecentPointsCard";
 import { tierFor, progressToNext } from "../lib/levels";
 import { useQuests } from "../store/useQuests";
 import {
@@ -50,7 +53,20 @@ export default function QuestBoard() {
   const buckets = useMemo(() => classifyQuests(quests, today), [quests, today]);
   const totalPending = buckets.overdue.length + buckets.dueToday.length + buckets.upcoming.length;
   const totalToShow = totalPending + buckets.done.length;
-  const percent = totalToShow === 0 ? 0 : buckets.done.length / totalToShow;
+
+  // 진행률은 이번 주(토~금) 마감 퀘스트만 대상으로 계산.
+  const week = useMemo(() => getWeekSatToFri(today), [today]);
+  const weekStats = useMemo(() => {
+    let total = 0;
+    let done = 0;
+    for (const q of quests) {
+      if (q.due_date < week.start || q.due_date > week.end) continue;
+      total += 1;
+      if (q.status === "done") done += 1;
+    }
+    return { total, done };
+  }, [quests, week.start, week.end]);
+  const percent = weekStats.total === 0 ? 0 : weekStats.done / weekStats.total;
 
   const [streak, setStreak] = useState(0);
   useEffect(() => {
@@ -65,6 +81,20 @@ export default function QuestBoard() {
 
   const awaitingVerify = quests.filter(
     (q) => q.status === "done" && q.requires_verification && !q.verified
+  );
+
+  const yesterday = shiftDate(today, -1);
+  const todayPoints = useMemo(
+    () => sumPointsOn(ledger, today),
+    [ledger, today]
+  );
+  const yesterdayPoints = useMemo(
+    () => sumPointsOn(ledger, yesterday),
+    [ledger, yesterday]
+  );
+  const awaitingPoints = useMemo(
+    () => sumAwaitingPoints(quests),
+    [quests]
   );
 
   async function completeQuest(q: Quest, updatedSubtasks?: Subtask[]) {
@@ -139,11 +169,20 @@ export default function QuestBoard() {
       await revertQuest(q);
       return;
     }
+    if (q.text_response_prompt && !(q.text_response ?? "").trim()) {
+      alert(q.text_response_prompt);
+      return;
+    }
     const rect = (evt.currentTarget as HTMLElement).getBoundingClientRect();
     await completeQuest(q);
     if (!q.requires_verification) {
       emitPointBurst(rect.left + rect.width / 2, rect.top + 20, q.points);
     }
+  }
+
+  async function handleTextResponseChange(q: Quest, value: string) {
+    if ((q.text_response ?? "") === value) return;
+    await save({ ...q, text_response: value });
   }
 
   async function handleSubtaskToggle(
@@ -188,9 +227,9 @@ export default function QuestBoard() {
       <section className="card mb-4 flex items-center gap-4">
         <AchievementRing
           percent={percent}
-          label={`${buckets.done.length} / ${totalToShow}`}
-          sublabel="진행률"
-          glow={percent >= 1 && totalToShow > 0}
+          label={`${weekStats.done} / ${weekStats.total}`}
+          sublabel="이번 주 (토~금)"
+          glow={percent >= 1 && weekStats.total > 0}
         />
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-2">
@@ -221,6 +260,12 @@ export default function QuestBoard() {
         </div>
       </section>
 
+      <RecentPointsCard
+        todayPoints={todayPoints}
+        yesterdayPoints={yesterdayPoints}
+        awaitingPoints={awaitingPoints}
+      />
+
       {awaitingVerify.length > 0 && (
         <div className="card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-sm">
           ⏳ 보호자 확인 대기 중 <b>{awaitingVerify.length}개</b> — 확인되면
@@ -248,6 +293,7 @@ export default function QuestBoard() {
               subject={q.subject_id ? subjectMap.get(q.subject_id) : undefined}
               onToggleMain={handleMainToggle}
               onToggleSubtask={handleSubtaskToggle}
+              onTextResponseChange={handleTextResponseChange}
             />
           ))}
         </Section>
@@ -267,6 +313,7 @@ export default function QuestBoard() {
               subject={q.subject_id ? subjectMap.get(q.subject_id) : undefined}
               onToggleMain={handleMainToggle}
               onToggleSubtask={handleSubtaskToggle}
+              onTextResponseChange={handleTextResponseChange}
             />
           ))}
         </Section>
@@ -286,6 +333,7 @@ export default function QuestBoard() {
               subject={q.subject_id ? subjectMap.get(q.subject_id) : undefined}
               onToggleMain={handleMainToggle}
               onToggleSubtask={handleSubtaskToggle}
+              onTextResponseChange={handleTextResponseChange}
             />
           ))}
         </Section>
@@ -306,6 +354,7 @@ export default function QuestBoard() {
               subject={q.subject_id ? subjectMap.get(q.subject_id) : undefined}
               onToggleMain={handleMainToggle}
               onToggleSubtask={handleSubtaskToggle}
+              onTextResponseChange={handleTextResponseChange}
             />
           ))}
         </Section>
@@ -359,15 +408,23 @@ function QuestCard({
   subject,
   onToggleMain,
   onToggleSubtask,
+  onTextResponseChange,
 }: {
   quest: Quest;
   today: string;
   subject?: { icon: string; color: string; name: string };
   onToggleMain: (q: Quest, evt: React.MouseEvent) => void;
   onToggleSubtask: (q: Quest, subtaskId: string, evt: React.MouseEvent) => void;
+  onTextResponseChange: (q: Quest, value: string) => void;
 }) {
   const done = quest.status === "done";
   const hasSubs = !!quest.subtasks && quest.subtasks.length > 0;
+  const hasTextPrompt = !!quest.text_response_prompt;
+  const [textDraft, setTextDraft] = useState(quest.text_response ?? "");
+  // 외부에서 quest.text_response 가 갱신되면 동기화 (다른 기기에서 입력 후 전파된 경우 등).
+  useEffect(() => {
+    setTextDraft(quest.text_response ?? "");
+  }, [quest.text_response]);
   const awaitingVerify = done && quest.requires_verification && !quest.verified;
   const verified = done && quest.verified;
   const rejected = !!quest.rejectedReason;
@@ -393,7 +450,7 @@ function QuestCard({
     <div
       className={`card transition ${
         done ? "" : "hover:shadow-md"
-      } ${hasSubs || locked ? "" : "cursor-pointer"} ${
+      } ${hasSubs || hasTextPrompt || locked ? "" : "cursor-pointer"} ${
         overdue ? "border-red-300 dark:border-red-800" : ""
       }`}
       onClick={handleClick}
@@ -511,6 +568,28 @@ function QuestCard({
               </span>
             </button>
           ))}
+        </div>
+      )}
+
+      {hasTextPrompt && (
+        <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+          <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">
+            ✍️ {quest.text_response_prompt}
+          </label>
+          <textarea
+            className="input w-full text-sm"
+            rows={2}
+            placeholder="예: 거실 식탁, 내 방 책상…"
+            value={textDraft}
+            disabled={locked}
+            onChange={(e) => setTextDraft(e.target.value)}
+            onBlur={() => onTextResponseChange(quest, textDraft.trim())}
+          />
+          {!locked && !done && !textDraft.trim() && (
+            <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+              완료 체크하려면 먼저 어디 청소했는지 적어주세요
+            </div>
+          )}
         </div>
       )}
     </div>
