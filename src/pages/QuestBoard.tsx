@@ -16,6 +16,7 @@ import {
 import { RecentPointsCard } from "../components/RecentPointsCard";
 import { tierFor, progressToNext } from "../lib/levels";
 import { useQuests } from "../store/useQuests";
+import { useMonsters } from "../store/useMonsters";
 import {
   classifyQuests,
   evaluatePerfectForToday,
@@ -40,6 +41,7 @@ export default function QuestBoard() {
   const today = todayISO();
   const { quests, save } = useQuests(studentId);
   const { balance, append, ledger } = usePoints(studentId);
+  const { applyProgressToActive } = useMonsters(studentId);
 
   useEffect(() => {
     if (studentId && studentId !== activeChildId) setChild(studentId);
@@ -53,14 +55,17 @@ export default function QuestBoard() {
   const buckets = useMemo(() => classifyQuests(quests, today), [quests, today]);
   const totalPending = buckets.overdue.length + buckets.dueToday.length + buckets.upcoming.length;
   const totalToShow = totalPending + buckets.done.length;
+  const [doneCollapsed, setDoneCollapsed] = useState(true);
 
-  // 진행률은 이번 주(토~금) 마감 퀘스트만 대상으로 계산.
+  // 진행률은 이번 주(토~금) 마감 정규 퀘스트만 대상. 청소·보너스 제외.
   const week = useMemo(() => getWeekSatToFri(today), [today]);
   const weekStats = useMemo(() => {
     let total = 0;
     let done = 0;
     for (const q of quests) {
       if (q.due_date < week.start || q.due_date > week.end) continue;
+      if (q.title?.startsWith("🧹 청소")) continue;
+      if (q.title?.includes("🎁 보너스")) continue;
       total += 1;
       if (q.status === "done") done += 1;
     }
@@ -131,6 +136,8 @@ export default function QuestBoard() {
         note: q.title,
       });
     }
+    // 키우는 알/몬스터에 진척 +1. 활성 친구가 없으면 자동 무시.
+    await applyProgressToActive();
     // 완주 평가: today 기준 마감 도래한 퀘스트가 모두 done이면 perfect.
     const allQuests = await loadStudentQuests(studentId);
     const isPerfect = evaluatePerfectForToday(allQuests, today);
@@ -340,24 +347,33 @@ export default function QuestBoard() {
       )}
 
       {buckets.done.length > 0 && (
-        <Section
-          title="✅ 완료"
-          count={buckets.done.length}
-          tone="muted"
-          dim
-        >
-          {buckets.done.map((q) => (
-            <QuestCard
-              key={q.id}
-              quest={q}
-              today={today}
-              subject={q.subject_id ? subjectMap.get(q.subject_id) : undefined}
-              onToggleMain={handleMainToggle}
-              onToggleSubtask={handleSubtaskToggle}
-              onTextResponseChange={handleTextResponseChange}
-            />
-          ))}
-        </Section>
+        <section className="mb-4 opacity-80">
+          <button
+            type="button"
+            onClick={() => setDoneCollapsed((v) => !v)}
+            className="w-full flex items-center justify-between font-bold mb-2 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+          >
+            <span>
+              ✅ 완료 <span className="text-stone-400">({buckets.done.length})</span>
+            </span>
+            <span className="text-xs">{doneCollapsed ? "▼ 펼치기" : "▲ 접기"}</span>
+          </button>
+          {!doneCollapsed && (
+            <div className="space-y-2">
+              {buckets.done.map((q) => (
+                <QuestCard
+                  key={q.id}
+                  quest={q}
+                  today={today}
+                  subject={q.subject_id ? subjectMap.get(q.subject_id) : undefined}
+                  onToggleMain={handleMainToggle}
+                  onToggleSubtask={handleSubtaskToggle}
+                  onTextResponseChange={handleTextResponseChange}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {totalPending === 0 && totalToShow > 0 && (
