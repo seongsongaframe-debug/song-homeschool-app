@@ -24,9 +24,14 @@ export default function Shop() {
     }, [studentId]);
     const myPurchases = useMemo(() => purchases.filter((p) => p.student_id === studentId), [purchases, studentId]);
     const pendingMine = myPurchases.filter((p) => p.status === "pending");
+    // 승인 대기 중인 구매도 잔고에서 미리 차감 (중복 요청 방지).
+    const pendingTotal = pendingMine.reduce((s, p) => s + p.cost_points, 0);
+    const availableBalance = balance - pendingTotal;
     async function request(reward) {
-        if (reward.cost_points > balance)
+        if (reward.cost_points > availableBalance) {
+            alert(`포인트가 부족해요!\n사용 가능: ${availableBalance}p (잔고 ${balance}p − 대기중 ${pendingTotal}p)\n필요: ${reward.cost_points}p`);
             return;
+        }
         const p = {
             id: crypto.randomUUID(),
             student_id: studentId,
@@ -46,11 +51,11 @@ export default function Shop() {
         return null;
     // 학생 한정 보상은 본인 것만, 공용은 모두 노출.
     const activeRewards = rewards.filter((r) => r.active && (!r.student_id || r.student_id === studentId));
-    return (_jsxs("div", { className: "max-w-3xl mx-auto p-4", children: [_jsxs("header", { className: "mb-4", children: [_jsx("h1", { className: "text-2xl font-bold", children: "\uD83C\uDFEA \uBCF4\uC0C1 \uC0C1\uC810" }), _jsx("p", { className: "text-stone-500 dark:text-stone-400", children: "\uD3EC\uC778\uD2B8\uB85C \uAD50\uD658\uD558\uC138\uC694. \uAD6C\uB9E4\uB294 \uBCF4\uD638\uC790 \uC2B9\uC778 \uD6C4 \uD655\uC815\uB429\uB2C8\uB2E4." })] }), _jsx(StudentTabs, { students: students, selected: studentId, onSelect: setStudentId }), _jsxs("section", { className: "card mb-4 text-center", children: [_jsx("div", { className: "text-sm text-stone-500 dark:text-stone-400", children: "\uB0B4 \uD3EC\uC778\uD2B8" }), _jsxs("div", { className: "text-4xl font-extrabold text-brand-600 dark:text-brand-400", children: ["\uD83D\uDCB0 ", balance, "p"] })] }), pendingMine.length > 0 && (_jsxs("section", { className: "card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800", children: [_jsx("h3", { className: "font-bold mb-2", children: "\u23F3 \uC2B9\uC778 \uB300\uAE30 \uC911" }), pendingMine.map((p) => {
+    return (_jsxs("div", { className: "max-w-3xl mx-auto p-4", children: [_jsxs("header", { className: "mb-4", children: [_jsx("h1", { className: "text-2xl font-bold", children: "\uD83C\uDFEA \uBCF4\uC0C1 \uC0C1\uC810" }), _jsx("p", { className: "text-stone-500 dark:text-stone-400", children: "\uD3EC\uC778\uD2B8\uB85C \uAD50\uD658\uD558\uC138\uC694. \uAD6C\uB9E4\uB294 \uBCF4\uD638\uC790 \uC2B9\uC778 \uD6C4 \uD655\uC815\uB429\uB2C8\uB2E4." })] }), _jsx(StudentTabs, { students: students, selected: studentId, onSelect: setStudentId }), _jsxs("section", { className: "card mb-4 text-center", children: [_jsx("div", { className: "text-sm text-stone-500 dark:text-stone-400", children: "\uB0B4 \uD3EC\uC778\uD2B8" }), _jsxs("div", { className: "text-4xl font-extrabold text-brand-600 dark:text-brand-400", children: ["\uD83D\uDCB0 ", balance, "p"] }), pendingTotal > 0 && (_jsxs("div", { className: "text-xs text-amber-700 dark:text-amber-400 mt-1", children: ["\uC2B9\uC778 \uB300\uAE30 \u2212", pendingTotal, "p \u00B7 \uC0AC\uC6A9 \uAC00\uB2A5 ", availableBalance, "p"] }))] }), pendingMine.length > 0 && (_jsxs("section", { className: "card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800", children: [_jsx("h3", { className: "font-bold mb-2", children: "\u23F3 \uC2B9\uC778 \uB300\uAE30 \uC911" }), pendingMine.map((p) => {
                         const r = rewards.find((x) => x.id === p.reward_id);
                         return (_jsxs("div", { className: "flex items-center gap-2 py-1", children: [_jsx("span", { children: r?.icon ?? "🎁" }), _jsx("span", { className: "flex-1", children: r?.title ?? "(삭제된 보상)" }), _jsxs("span", { className: "text-sm", children: [p.cost_points, "p"] }), _jsx("button", { className: "text-xs text-stone-500 hover:text-red-500", onClick: () => cancel(p), children: "\uCDE8\uC18C" })] }, p.id));
                     })] })), _jsxs("section", { children: [activeRewards.length === 0 && (_jsx("div", { className: "card text-center py-10 text-stone-500 dark:text-stone-400", children: "\uC544\uC9C1 \uBCF4\uC0C1\uC774 \uB4F1\uB85D\uB418\uC9C0 \uC54A\uC558\uC5B4\uC694." })), _jsx("div", { className: "grid grid-cols-2 gap-3", children: activeRewards.map((r) => {
-                            const canAfford = balance >= r.cost_points;
+                            const canAfford = availableBalance >= r.cost_points;
                             return (_jsxs("div", { className: "card flex flex-col text-center", children: [r.image_url ? (_jsx("div", { className: "aspect-square w-full mb-2 rounded-xl overflow-hidden bg-stone-100 dark:bg-stone-800 flex items-center justify-center", children: _jsx("img", { src: r.image_url, alt: r.title, className: "w-full h-full object-contain", loading: "lazy", onError: (e) => {
                                                 e.currentTarget.style.display = "none";
                                             } }) })) : (_jsx("div", { className: "text-5xl mb-2", children: r.icon })), _jsx("div", { className: "font-bold", children: r.title }), _jsx("div", { className: "text-xs text-stone-500 dark:text-stone-400 mb-2", children: KIND_LABEL[r.kind] }), r.description && (_jsx("div", { className: "text-xs text-stone-500 dark:text-stone-400 mb-2 flex-1", children: r.description })), _jsxs("div", { className: "font-bold text-lg mb-2", children: [r.cost_points, "p"] }), _jsx("button", { className: canAfford ? "btn-primary" : "btn-ghost opacity-50", disabled: !canAfford, onClick: () => request(r), children: canAfford ? "구매 요청" : "포인트 부족" })] }, r.id));

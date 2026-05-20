@@ -5,7 +5,7 @@ import { useData } from "../store/DataContext";
 import { useRewards, usePurchases } from "../store/useRewards";
 import { useAuth } from "../store/AuthContext";
 import { evaluatePerfectForToday, loadStudentQuests } from "../lib/quest-eval";
-import { manualSeedHyein } from "../lib/auto-quests";
+import { manualSeed } from "../lib/auto-quests";
 import { todayISO, fmtDueShort } from "../lib/dates";
 const KIND_LABEL = {
     treat: "간식",
@@ -28,17 +28,18 @@ export default function Manage() {
     const [editing, setEditing] = useState(null);
     const [showNew, setShowNew] = useState(false);
     const [pinInput, setPinInput] = useState("");
-    // ----- 혜인 주간 자동 부여 -----
-    const [autoSeedBusy, setAutoSeedBusy] = useState(false);
+    // ----- 학생별 주간 자동 부여 -----
+    const [autoSeedBusy, setAutoSeedBusy] = useState(null);
     const [autoSeedToast, setAutoSeedToast] = useState(null);
-    async function triggerHyeinAutoSeed() {
-        setAutoSeedBusy(true);
+    async function triggerSeed(studentId) {
+        setAutoSeedBusy(studentId);
         try {
-            const r = await manualSeedHyein();
+            const r = await manualSeed(studentId);
             const msgByReason = {
-                seeded: `✓ ${r.weekStart} 주에 ${r.created}개 퀘스트 생성`,
-                already_flagged: `이미 ${r.weekStart} 주는 자동 생성됨 (스킵)`,
-                existing_quests: `${r.weekStart} 주에 이미 퀘스트가 있어 스킵`,
+                seeded: `✓ ${r.studentLabel} ${r.weekStart} 주에 ${r.created}개 생성`,
+                already_flagged: `${r.studentLabel} ${r.weekStart} 주는 이미 자동 생성됨 (스킵)`,
+                existing_quests: `${r.studentLabel} ${r.weekStart} 주에 이미 퀘스트가 있어 스킵`,
+                no_pattern: `${r.studentLabel} 자동 부여 패턴이 등록되어 있지 않음`,
             };
             setAutoSeedToast(msgByReason[r.reason]);
         }
@@ -46,7 +47,7 @@ export default function Manage() {
             setAutoSeedToast(`오류: ${e.message}`);
         }
         finally {
-            setAutoSeedBusy(false);
+            setAutoSeedBusy(null);
             setTimeout(() => setAutoSeedToast(null), 5000);
         }
     }
@@ -86,12 +87,23 @@ export default function Manage() {
         setTimeout(() => setGrantToast(null), 3000);
     }
     async function approve(p) {
+        const data = (await storage.read(KEYS.pointLedger(p.student_id))) ?? [];
+        const balance = data.reduce((s, e) => s + e.delta, 0);
+        if (balance < p.cost_points) {
+            const s = students.find((x) => x.id === p.student_id);
+            const ok = confirm(`⚠️ 잔고 부족\n${s?.emoji ?? ""} ${s?.name ?? ""}\n` +
+                `현재 잔고: ${balance}p\n필요 포인트: ${p.cost_points}p\n` +
+                `부족분: ${p.cost_points - balance}p\n\n` +
+                `이대로 승인하면 잔고가 마이너스(${balance - p.cost_points}p)가 됩니다.\n` +
+                `정말 승인하시겠습니까?`);
+            if (!ok)
+                return;
+        }
         await savePurchase({
             ...p,
             status: "approved",
             decidedAt: new Date().toISOString(),
         });
-        const data = (await storage.read(KEYS.pointLedger(p.student_id))) ?? [];
         const next = [
             ...data,
             {
@@ -245,13 +257,13 @@ export default function Manage() {
                                 }, children: "\uD574\uC81C" })] })) : (_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("input", { className: "input flex-1", type: "password", maxLength: 4, pattern: "[0-9]{4}", placeholder: "4\uC790\uB9AC \uC22B\uC790", value: pinInput, onChange: (e) => setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4)) }), _jsx("button", { className: "btn-primary", disabled: pinInput.length !== 4, onClick: async () => {
                                     await setPin(pinInput);
                                     setPinInput("");
-                                }, children: "PIN \uC124\uC815" })] }))] }), _jsxs("section", { className: "card mb-4", children: [_jsx("h3", { className: "font-bold mb-2", children: "\uD83D\uDD01 \uD61C\uC778 \uC8FC\uAC04 \uACFC\uC81C \uC790\uB3D9 \uBD80\uC5EC" }), _jsx("p", { className: "text-xs text-stone-500 dark:text-stone-400 mb-2", children: "\uB9E4\uC8FC \uD1A0/\uC77C \uCCAB \uB85C\uB4DC \uC2DC \uCC28\uC8FC 7\uAC1C (\uB208\uB192\uC774 2 + \uD559\uC6D0 5 = 1000p) \uC790\uB3D9 \uC0DD\uC131. \uB204\uB77D \uC2DC \uC544\uB798 \uBC84\uD2BC\uC73C\uB85C \uC218\uB3D9 \uD2B8\uB9AC\uAC70." }), _jsx("button", { className: "btn-ghost text-sm", disabled: autoSeedBusy, onClick: triggerHyeinAutoSeed, children: autoSeedBusy ? "처리 중…" : "지금 채우기" }), autoSeedToast && (_jsx("div", { className: "mt-2 text-sm text-emerald-600 dark:text-emerald-400", children: autoSeedToast }))] }), _jsxs("section", { className: "card mb-4", children: [_jsx("h3", { className: "font-bold mb-2", children: "\uD83D\uDCB0 \uD3EC\uC778\uD2B8 \uC9C1\uC811 \uC9C0\uAE09 / \uCC28\uAC10" }), _jsx("p", { className: "text-xs text-stone-500 dark:text-stone-400 mb-3", children: "\uCE6D\uCC2C\u00B7\uAC00\uC0AC \uB3C4\uC6C0\u00B7\uB3D9\uC0DD \uCC59\uAE40 \uB4F1 \uC77C\uC0C1\uC5D0\uC11C \uC989\uC11D \uBCF4\uC0C1. \uC74C\uC218\uB294 \uCC28\uAC10." }), _jsxs("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-2", children: [_jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uB300\uC0C1" }), _jsx("select", { className: "input", value: grantStudentId, onChange: (e) => setGrantStudentId(e.target.value), children: students.map((s) => (_jsxs("option", { value: s.id, children: [s.emoji, " ", s.name] }, s.id))) })] }), _jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uD3EC\uC778\uD2B8" }), _jsx("input", { type: "number", step: 5, className: "input", value: grantAmount, onChange: (e) => setGrantAmount(Number(e.target.value)) })] }), _jsxs("div", { className: "col-span-2 md:col-span-2", children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uC0AC\uC720 (\uD544\uC218)" }), _jsx("input", { className: "input", placeholder: "\uC608: \uB3D9\uC0DD \uC798 \uCC59\uACA8\uC90C", value: grantNote, onChange: (e) => setGrantNote(e.target.value) })] })] }), _jsxs("div", { className: "flex flex-wrap gap-1 mt-2", children: [[10, 20, 50, 100, -10].map((amt) => (_jsxs("button", { className: "chip bg-stone-100 dark:bg-stone-800 hover:brightness-95", onClick: () => setGrantAmount(amt), children: [amt > 0 ? `+${amt}` : amt, "p"] }, amt))), _jsx("button", { className: "btn-primary ml-auto", disabled: grantBusy || grantAmount === 0 || !grantNote.trim(), onClick: grantPoints, children: grantBusy
+                                }, children: "PIN \uC124\uC815" })] }))] }), _jsxs("section", { className: "card mb-4", children: [_jsx("h3", { className: "font-bold mb-2", children: "\uD83D\uDD01 \uC8FC\uAC04 \uACFC\uC81C \uC790\uB3D9 \uBD80\uC5EC" }), _jsx("p", { className: "text-xs text-stone-500 dark:text-stone-400 mb-2", children: "\uB9E4\uC8FC \uC77C\uC694\uC77C \uCCAB \uB85C\uB4DC \uC2DC \uCC28\uC8FC\uBD84\uC774 \uC790\uB3D9 \uC0DD\uC131. \uB204\uB77D \uC2DC \uC544\uB798 \uBC84\uD2BC\uC73C\uB85C \uD559\uC0DD\uBCC4 \uC218\uB3D9 \uD2B8\uB9AC\uAC70." }), _jsxs("div", { className: "flex gap-2 flex-wrap", children: [_jsx("button", { className: "btn-ghost text-sm", disabled: !!autoSeedBusy, onClick: () => triggerSeed("hyein"), children: autoSeedBusy === "hyein" ? "처리 중…" : "혜인 채우기" }), _jsx("button", { className: "btn-ghost text-sm", disabled: !!autoSeedBusy, onClick: () => triggerSeed("sein"), children: autoSeedBusy === "sein" ? "처리 중…" : "세인 채우기" })] }), autoSeedToast && (_jsx("div", { className: "mt-2 text-sm text-emerald-600 dark:text-emerald-400", children: autoSeedToast }))] }), _jsxs("section", { className: "card mb-4", children: [_jsx("h3", { className: "font-bold mb-2", children: "\uD83D\uDCB0 \uD3EC\uC778\uD2B8 \uC9C1\uC811 \uC9C0\uAE09 / \uCC28\uAC10" }), _jsx("p", { className: "text-xs text-stone-500 dark:text-stone-400 mb-3", children: "\uCE6D\uCC2C\u00B7\uAC00\uC0AC \uB3C4\uC6C0\u00B7\uB3D9\uC0DD \uCC59\uAE40 \uB4F1 \uC77C\uC0C1\uC5D0\uC11C \uC989\uC11D \uBCF4\uC0C1. \uC74C\uC218\uB294 \uCC28\uAC10." }), _jsxs("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-2", children: [_jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uB300\uC0C1" }), _jsx("select", { className: "input", value: grantStudentId, onChange: (e) => setGrantStudentId(e.target.value), children: students.map((s) => (_jsxs("option", { value: s.id, children: [s.emoji, " ", s.name] }, s.id))) })] }), _jsxs("div", { children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uD3EC\uC778\uD2B8" }), _jsx("input", { type: "number", step: 5, className: "input", value: grantAmount, onChange: (e) => setGrantAmount(Number(e.target.value)) })] }), _jsxs("div", { className: "col-span-2 md:col-span-2", children: [_jsx("label", { className: "text-xs text-stone-500 dark:text-stone-400", children: "\uC0AC\uC720 (\uD544\uC218)" }), _jsx("input", { className: "input", placeholder: "\uC608: \uB3D9\uC0DD \uC798 \uCC59\uACA8\uC90C", value: grantNote, onChange: (e) => setGrantNote(e.target.value) })] })] }), _jsxs("div", { className: "flex flex-wrap gap-1 mt-2", children: [[10, 20, 50, 100, -10].map((amt) => (_jsxs("button", { className: "chip bg-stone-100 dark:bg-stone-800 hover:brightness-95", onClick: () => setGrantAmount(amt), children: [amt > 0 ? `+${amt}` : amt, "p"] }, amt))), _jsx("button", { className: "btn-primary ml-auto", disabled: grantBusy || grantAmount === 0 || !grantNote.trim(), onClick: grantPoints, children: grantBusy
                                     ? "처리 중…"
                                     : grantAmount > 0
                                         ? `+${grantAmount}p 지급`
                                         : `${grantAmount}p 차감` })] }), grantToast && (_jsxs("div", { className: "mt-2 text-sm text-emerald-600 dark:text-emerald-400", children: ["\u2713 ", grantToast] }))] }), verifyQueue.length > 0 && (_jsxs("section", { className: "card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800", children: [_jsx("div", { className: "flex items-center justify-between mb-2", children: _jsxs("h3", { className: "font-bold", children: ["\uD83D\uDCDD \uD018\uC2A4\uD2B8 \uD655\uC778 \uB300\uAE30 (", verifyQueue.length, ")"] }) }), _jsx("div", { className: "space-y-2", children: verifyQueue.map((q) => {
                             const s = students.find((x) => x.id === q.student_id);
-                            return (_jsx("div", { className: "border-t border-amber-200 dark:border-amber-800 pt-2", children: _jsxs("div", { className: "flex items-center gap-2", children: [_jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: "font-medium truncate", children: q.title }), _jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: [s?.emoji, " ", s?.name, " \u00B7 \uB9C8\uAC10 ", fmtDueShort(q.due_date), " \u00B7", " ", q.target, q.unit, " \u00B7 +", q.points, "p"] }), q.note && (_jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400 italic", children: ["\uD83D\uDCA1 ", q.note] })), q.subtasks && q.subtasks.length > 0 && (_jsx("div", { className: "text-xs text-stone-500 dark:text-stone-400 mt-1", children: q.subtasks.map((s) => (_jsxs("span", { className: "mr-2", children: [s.done ? "✅" : "☐", " ", s.label] }, s.id))) }))] }), _jsx("button", { className: "btn-primary text-sm", onClick: () => verifyQuest(q), children: "\uD655\uC778 \u2713" }), _jsx("button", { className: "btn-ghost text-sm", onClick: () => {
+                            return (_jsx("div", { className: "border-t border-amber-200 dark:border-amber-800 pt-2", children: _jsxs("div", { className: "flex items-center gap-2", children: [_jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: "font-medium truncate", children: q.title }), _jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400", children: [s?.emoji, " ", s?.name, " \u00B7 \uB9C8\uAC10 ", fmtDueShort(q.due_date), " \u00B7", " ", q.target, q.unit, " \u00B7 +", q.points, "p"] }), q.note && (_jsxs("div", { className: "text-xs text-stone-500 dark:text-stone-400 italic", children: ["\uD83D\uDCA1 ", q.note] })), q.subtasks && q.subtasks.length > 0 && (_jsx("div", { className: "text-xs text-stone-500 dark:text-stone-400 mt-1", children: q.subtasks.map((s) => (_jsxs("span", { className: "mr-2", children: [s.done ? "✅" : "☐", " ", s.label] }, s.id))) })), q.text_response_prompt && (_jsxs("div", { className: "text-xs mt-1", children: [_jsxs("span", { className: "text-stone-500 dark:text-stone-400", children: ["\u270D\uFE0F ", q.text_response_prompt] }), " ", _jsx("span", { className: "font-medium text-stone-800 dark:text-stone-100", children: q.text_response?.trim() || "(미입력)" })] }))] }), _jsx("button", { className: "btn-primary text-sm", onClick: () => verifyQuest(q), children: "\uD655\uC778 \u2713" }), _jsx("button", { className: "btn-ghost text-sm", onClick: () => {
                                                 setRejectTarget(q);
                                                 setRejectReason("");
                                             }, children: "\uB2E4\uC2DC" })] }) }, q.id));

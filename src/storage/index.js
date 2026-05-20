@@ -32,4 +32,6 @@ export const KEYS = {
     badges: "config/badges",
     badgesEarned: (studentId) => `badges_earned/${studentId}`,
     autoSeedFlag: (studentId, weekStartISO) => `_autoseed/${studentId}/${weekStartISO}`,
+    cleaningDailyFlag: (studentId, dateISO) => `_cleaning/${studentId}/${dateISO}`,
+    monsters: (studentId) => `monsters/${studentId}`,
 };

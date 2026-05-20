@@ -14,3 +14,7 @@ export const LEVEL_TIERS = [
     { level: 6, minPoints: 1500, title: "현자", icon: "🧙" },
     { level: 7, minPoints: 2500, title: "전설", icon: "👑" },
 ];
+// 알이 부화하기까지 필요한 누적 퀘스트 진척.
+export const EGG_HATCH_AT = 5;
+// 알 1개 구매가격(포인트).
+export const EGG_PRICE = 50;

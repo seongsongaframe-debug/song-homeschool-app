@@ -2,7 +2,7 @@ import { NavLink, Route, Routes, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { DataProvider, useData } from "./store/DataContext";
 import { AuthProvider, useAuth } from "./store/AuthContext";
-import { maybeAutoSeedHyein } from "./lib/auto-quests";
+import { maybeAutoSeedAll, runDailyCleaningSync } from "./lib/auto-quests";
 import QuestBoard from "./pages/QuestBoard";
 import ParentQuests from "./pages/ParentQuests";
 import Curriculum from "./pages/Curriculum";
@@ -12,12 +12,14 @@ import Report from "./pages/Report";
 import Shop from "./pages/Shop";
 import Manage from "./pages/Manage";
 import Achievements from "./pages/Achievements";
+import MonsterDex from "./pages/MonsterDex";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { PinPad } from "./components/PinPad";
 import { PointBurst } from "./components/PointBurst";
 
 const CHILD_NAV = [
   { to: "/today", label: "오늘", icon: "🎯" },
+  { to: "/dex", label: "도감", icon: "📓" },
   { to: "/achievements", label: "성취", icon: "🏆" },
   { to: "/shop", label: "상점", icon: "🏪" },
   { to: "/reading", label: "독서", icon: "📚" },
@@ -40,7 +42,8 @@ function Shell() {
 
   useEffect(() => {
     if (!dataReady) return;
-    maybeAutoSeedHyein().catch((e) => console.warn("[auto-seed]", e));
+    maybeAutoSeedAll().catch((e) => console.warn("[auto-seed]", e));
+    runDailyCleaningSync().catch((e) => console.warn("[cleaning-sync]", e));
   }, [dataReady]);
 
   if (!dataReady || !authReady) {
@@ -148,6 +151,7 @@ function Shell() {
             element={role === "parent" ? <ParentQuests /> : <QuestBoard />}
           />
           <Route path="/achievements" element={<Achievements />} />
+          <Route path="/dex" element={<MonsterDex />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/manage" element={<Manage />} />
           <Route path="/curriculum" element={<Curriculum />} />

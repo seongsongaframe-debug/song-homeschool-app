@@ -31,9 +31,17 @@ export default function Shop() {
     [purchases, studentId]
   );
   const pendingMine = myPurchases.filter((p) => p.status === "pending");
+  // 승인 대기 중인 구매도 잔고에서 미리 차감 (중복 요청 방지).
+  const pendingTotal = pendingMine.reduce((s, p) => s + p.cost_points, 0);
+  const availableBalance = balance - pendingTotal;
 
   async function request(reward: Reward) {
-    if (reward.cost_points > balance) return;
+    if (reward.cost_points > availableBalance) {
+      alert(
+        `포인트가 부족해요!\n사용 가능: ${availableBalance}p (잔고 ${balance}p − 대기중 ${pendingTotal}p)\n필요: ${reward.cost_points}p`
+      );
+      return;
+    }
     const p: Purchase = {
       id: crypto.randomUUID(),
       student_id: studentId,
@@ -77,6 +85,11 @@ export default function Shop() {
         <div className="text-4xl font-extrabold text-brand-600 dark:text-brand-400">
           💰 {balance}p
         </div>
+        {pendingTotal > 0 && (
+          <div className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+            승인 대기 −{pendingTotal}p · 사용 가능 {availableBalance}p
+          </div>
+        )}
       </section>
 
       {pendingMine.length > 0 && (
@@ -112,7 +125,7 @@ export default function Shop() {
         )}
         <div className="grid grid-cols-2 gap-3">
           {activeRewards.map((r) => {
-            const canAfford = balance >= r.cost_points;
+            const canAfford = availableBalance >= r.cost_points;
             return (
               <div key={r.id} className="card flex flex-col text-center">
                 {r.image_url ? (

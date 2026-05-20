@@ -40,6 +40,9 @@ export const KEYS = {
   badgesEarned: (studentId: string) => `badges_earned/${studentId}`,
   autoSeedFlag: (studentId: string, weekStartISO: string) =>
     `_autoseed/${studentId}/${weekStartISO}`,
+  cleaningDailyFlag: (studentId: string, dateISO: string) =>
+    `_cleaning/${studentId}/${dateISO}`,
+  monsters: (studentId: string) => `monsters/${studentId}`,
 };
 
 export type { StorageAdapter };

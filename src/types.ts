@@ -209,6 +209,10 @@ export interface Quest {
   verified?: boolean;
   verifiedAt?: string;
   rejectedReason?: string;
+  // 주관식 응답: 프롬프트가 있으면 QuestBoard에 textarea를 띄우고
+  // 응답이 비어있으면 완료 체크를 차단한다 (예: 청소 장소 입력).
+  text_response_prompt?: string;
+  text_response?: string;
 }
 
 export interface QuestTemplate {
@@ -327,3 +331,48 @@ export interface AuthState {
   activeChildId?: string;
   pinSet: boolean;
 }
+
+// ---------- 몬스터 도감 ----------
+
+export type MonsterRarity = "common" | "rare" | "epic";
+
+export interface MonsterStage {
+  name: string;
+  emoji: string;
+  // 부화 후 누적 퀘스트 진척이 이 값 이상이면 이 단계로 진화한다.
+  questsToReach: number;
+}
+
+export interface MonsterSpecies {
+  id: string;
+  rarity: MonsterRarity;
+  weight: number;
+  description: string;
+  // stages[0] = 부화 직후, stages[1+] = 단계별 진화 형태.
+  stages: MonsterStage[];
+}
+
+export interface MonsterInstance {
+  id: string;
+  student_id: string;
+  acquiredAt: string;
+  // 부화 전엔 undefined. 부화 시 가중치 추첨으로 결정된다.
+  species_id?: string;
+  hatchedAt?: string;
+  // 알 구매 이후 누적된 퀘스트 완료 수. 부화·진화 트리거의 단일 진척 지표.
+  progress: number;
+  // 0 = 알, 1 = stages[0], 2 = stages[1], ...
+  stage: number;
+}
+
+// 알이 부화하기까지 필요한 누적 퀘스트 진척.
+export const EGG_HATCH_AT = 5;
+
+// 학생당 1개의 도감. active = 현재 키우는 알/몬스터, dex = 완전 진화 완료해 수집된 친구들.
+export interface MonsterCollection {
+  active: MonsterInstance | null;
+  dex: MonsterInstance[];
+}
+
+// 알 1개 구매가격(포인트).
+export const EGG_PRICE = 50;

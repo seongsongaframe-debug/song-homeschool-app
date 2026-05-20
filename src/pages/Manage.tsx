@@ -4,7 +4,7 @@ import { useData } from "../store/DataContext";
 import { useRewards, usePurchases } from "../store/useRewards";
 import { useAuth } from "../store/AuthContext";
 import { evaluatePerfectForToday, loadStudentQuests } from "../lib/quest-eval";
-import { manualSeedHyein, type SeedReason } from "../lib/auto-quests";
+import { manualSeed, type SeedReason } from "../lib/auto-quests";
 import { todayISO, fmtDueShort } from "../lib/dates";
 import type { PointEntry, Purchase, Quest, Reward } from "../types";
 
@@ -32,24 +32,25 @@ export default function Manage() {
   const [showNew, setShowNew] = useState(false);
   const [pinInput, setPinInput] = useState("");
 
-  // ----- 혜인 주간 자동 부여 -----
-  const [autoSeedBusy, setAutoSeedBusy] = useState(false);
+  // ----- 학생별 주간 자동 부여 -----
+  const [autoSeedBusy, setAutoSeedBusy] = useState<string | null>(null);
   const [autoSeedToast, setAutoSeedToast] = useState<string | null>(null);
 
-  async function triggerHyeinAutoSeed() {
-    setAutoSeedBusy(true);
+  async function triggerSeed(studentId: string) {
+    setAutoSeedBusy(studentId);
     try {
-      const r = await manualSeedHyein();
+      const r = await manualSeed(studentId);
       const msgByReason: Record<SeedReason, string> = {
-        seeded: `✓ ${r.weekStart} 주에 ${r.created}개 퀘스트 생성`,
-        already_flagged: `이미 ${r.weekStart} 주는 자동 생성됨 (스킵)`,
-        existing_quests: `${r.weekStart} 주에 이미 퀘스트가 있어 스킵`,
+        seeded: `✓ ${r.studentLabel} ${r.weekStart} 주에 ${r.created}개 생성`,
+        already_flagged: `${r.studentLabel} ${r.weekStart} 주는 이미 자동 생성됨 (스킵)`,
+        existing_quests: `${r.studentLabel} ${r.weekStart} 주에 이미 퀘스트가 있어 스킵`,
+        no_pattern: `${r.studentLabel} 자동 부여 패턴이 등록되어 있지 않음`,
       };
       setAutoSeedToast(msgByReason[r.reason]);
     } catch (e) {
       setAutoSeedToast(`오류: ${(e as Error).message}`);
     } finally {
-      setAutoSeedBusy(false);
+      setAutoSeedBusy(null);
       setTimeout(() => setAutoSeedToast(null), 5000);
     }
   }
@@ -95,14 +96,26 @@ export default function Manage() {
   }
 
   async function approve(p: Purchase) {
+    const data =
+      (await storage.read<PointEntry[]>(KEYS.pointLedger(p.student_id))) ?? [];
+    const balance = data.reduce((s, e) => s + e.delta, 0);
+    if (balance < p.cost_points) {
+      const s = students.find((x) => x.id === p.student_id);
+      const ok = confirm(
+        `⚠️ 잔고 부족\n${s?.emoji ?? ""} ${s?.name ?? ""}\n` +
+          `현재 잔고: ${balance}p\n필요 포인트: ${p.cost_points}p\n` +
+          `부족분: ${p.cost_points - balance}p\n\n` +
+          `이대로 승인하면 잔고가 마이너스(${balance - p.cost_points}p)가 됩니다.\n` +
+          `정말 승인하시겠습니까?`
+      );
+      if (!ok) return;
+    }
     await savePurchase({
       ...p,
       status: "approved",
       decidedAt: new Date().toISOString(),
     });
-    const data =
-      (await storage.read<any[]>(KEYS.pointLedger(p.student_id))) ?? [];
-    const next = [
+    const next: PointEntry[] = [
       ...data,
       {
         id: crypto.randomUUID(),
@@ -324,17 +337,26 @@ export default function Manage() {
       </section>
 
       <section className="card mb-4">
-        <h3 className="font-bold mb-2">🔁 혜인 주간 과제 자동 부여</h3>
+        <h3 className="font-bold mb-2">🔁 주간 과제 자동 부여</h3>
         <p className="text-xs text-stone-500 dark:text-stone-400 mb-2">
-          매주 토/일 첫 로드 시 차주 7개 (눈높이 2 + 학원 5 = 1000p) 자동 생성. 누락 시 아래 버튼으로 수동 트리거.
+          매주 일요일 첫 로드 시 차주분이 자동 생성. 누락 시 아래 버튼으로 학생별 수동 트리거.
         </p>
-        <button
-          className="btn-ghost text-sm"
-          disabled={autoSeedBusy}
-          onClick={triggerHyeinAutoSeed}
-        >
-          {autoSeedBusy ? "처리 중…" : "지금 채우기"}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            className="btn-ghost text-sm"
+            disabled={!!autoSeedBusy}
+            onClick={() => triggerSeed("hyein")}
+          >
+            {autoSeedBusy === "hyein" ? "처리 중…" : "혜인 채우기"}
+          </button>
+          <button
+            className="btn-ghost text-sm"
+            disabled={!!autoSeedBusy}
+            onClick={() => triggerSeed("sein")}
+          >
+            {autoSeedBusy === "sein" ? "처리 중…" : "세인 채우기"}
+          </button>
+        </div>
         {autoSeedToast && (
           <div className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">
             {autoSeedToast}
@@ -446,6 +468,16 @@ export default function Manage() {
                               {s.done ? "✅" : "☐"} {s.label}
                             </span>
                           ))}
+                        </div>
+                      )}
+                      {q.text_response_prompt && (
+                        <div className="text-xs mt-1">
+                          <span className="text-stone-500 dark:text-stone-400">
+                            ✍️ {q.text_response_prompt}
+                          </span>{" "}
+                          <span className="font-medium text-stone-800 dark:text-stone-100">
+                            {q.text_response?.trim() || "(미입력)"}
+                          </span>
                         </div>
                       )}
                     </div>
