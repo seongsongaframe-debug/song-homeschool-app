@@ -158,6 +158,7 @@ export default function Manage() {
   const [recentVerified, setRecentVerified] = useState<Quest[]>([]);
   const [rejectTarget, setRejectTarget] = useState<Quest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [verifyAllBusy, setVerifyAllBusy] = useState(false);
 
   const loadVerify = useCallback(async () => {
     const queue: Quest[] = [];
@@ -216,6 +217,71 @@ export default function Manage() {
       await storage.write(KEYS.pointLedger(q.student_id), nextLedger);
     }
     await loadVerify();
+  }
+
+  // 일괄 확인: 확인 대기 큐 전체를 한 번에 verify + ledger 적립.
+  // 단건 verifyQuest 와 동일 규약. 학생별로 ledger 를 한 번만 read/write 하여 효율화.
+  // perfect_day / streak_bonus 평가는 단건과 동일하게 생략(UI 정책 일치).
+  async function verifyAllPending() {
+    if (verifyQueue.length === 0) return;
+    if (
+      !confirm(
+        `확인 대기 ${verifyQueue.length}건을 모두 확인 처리합니다.\n나중에 실수면 "↺ 되돌리기" 로 개별 취소 가능합니다. 계속할까요?`
+      )
+    ) {
+      return;
+    }
+    setVerifyAllBusy(true);
+    try {
+      const today = todayISO();
+      const nowISO = new Date().toISOString();
+      // 학생별로 묶기
+      const byStudent = new Map<string, Quest[]>();
+      for (const q of verifyQueue) {
+        if (!byStudent.has(q.student_id)) byStudent.set(q.student_id, []);
+        byStudent.get(q.student_id)!.push(q);
+      }
+      for (const [sid, quests] of byStudent.entries()) {
+        const ledger =
+          (await storage.read<PointEntry[]>(KEYS.pointLedger(sid))) ?? [];
+        const seen = new Set(
+          ledger
+            .filter((e) => e.reason === "quest_complete" && e.quest_id)
+            .map((e) => e.quest_id!)
+        );
+        let nextLedger = ledger;
+        for (const q of quests) {
+          const next: Quest = {
+            ...q,
+            verified: true,
+            verifiedAt: nowISO,
+            rejectedReason: undefined,
+          };
+          await storage.write(KEYS.quest(sid, q.id), next);
+          if (!seen.has(q.id)) {
+            nextLedger = [
+              ...nextLedger,
+              {
+                id: crypto.randomUUID(),
+                student_id: sid,
+                date: today,
+                delta: q.points,
+                reason: "quest_complete",
+                quest_id: q.id,
+                note: q.title,
+              },
+            ];
+            seen.add(q.id);
+          }
+        }
+        if (nextLedger !== ledger) {
+          await storage.write(KEYS.pointLedger(sid), nextLedger);
+        }
+      }
+      await loadVerify();
+    } finally {
+      setVerifyAllBusy(false);
+    }
   }
 
   // 확인 취소: verified=true 였던 퀘스트를 다시 대기 상태로 되돌림.
@@ -435,10 +501,18 @@ export default function Manage() {
 
       {verifyQueue.length > 0 && (
         <section className="card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 gap-2">
             <h3 className="font-bold">
               📝 퀘스트 확인 대기 ({verifyQueue.length})
             </h3>
+            <button
+              className="btn-primary text-sm shrink-0"
+              disabled={verifyAllBusy}
+              onClick={verifyAllPending}
+              title="대기 중인 항목을 모두 한 번에 확인 처리"
+            >
+              {verifyAllBusy ? "처리 중…" : `📦 모두 확인 (${verifyQueue.length})`}
+            </button>
           </div>
           <div className="space-y-2">
             {verifyQueue.map((q) => {
