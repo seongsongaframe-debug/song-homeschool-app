@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// 송 가족 홈스쿨 앱 — 익명 인증 기반 단일-가족 공유.
+// 보호자/아이 분리는 앱 내부 PIN 으로 처리, Firestore 단에서는 익명 로그인만 요구.
+//
+// 수동 배포: Firebase 콘솔 > Firestore Database > 규칙 탭에 본 내용 붙여넣기 → "게시"
+// 콘솔 직링: https://console.firebase.google.com/project/song-homeschool/firestore/rules
+//
+// CLI 배포(향후):
+//   npm i -g firebase-tools
+//   firebase login
+//   firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 송 가족 — 익명 로그인된 모든 사용자에게 읽기·쓰기 허용
+    match /families/song/kv/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // 그 외 모든 경로는 차단 (향후 다른 가족 추가 시 패턴 복제)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

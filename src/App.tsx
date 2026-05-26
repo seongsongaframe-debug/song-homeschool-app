@@ -36,20 +36,44 @@ const PARENT_NAV = [
 ];
 
 function Shell() {
-  const { ready: dataReady } = useData();
+  const { ready: dataReady, error: dataError, reload } = useData();
   const { ready: authReady, role, pinSet, enterParent, exitParent } = useAuth();
   const [showPin, setShowPin] = useState(false);
 
   useEffect(() => {
-    if (!dataReady) return;
+    if (!dataReady || dataError) return;
     maybeAutoSeedAll().catch((e) => console.warn("[auto-seed]", e));
     runDailyCleaningSync().catch((e) => console.warn("[cleaning-sync]", e));
-  }, [dataReady]);
+  }, [dataReady, dataError]);
 
   if (!dataReady || !authReady) {
     return (
       <div className="h-full flex items-center justify-center text-stone-500 dark:text-stone-400">
         준비 중…
+      </div>
+    );
+  }
+
+  // 데이터 로드가 실패한 경우 — 조용히 "준비 중…" 으로 멈추지 않도록 명확히 노출.
+  if (dataError) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-red-200 bg-red-50 p-5 text-stone-800
+                        dark:border-red-900 dark:bg-stone-900 dark:text-stone-100">
+          <div className="text-lg font-bold text-red-700 dark:text-red-400 mb-2">⚠ 데이터 로드 실패</div>
+          <div className="text-sm mb-3 whitespace-pre-wrap break-words">{dataError}</div>
+          <div className="text-xs text-stone-600 dark:text-stone-400 mb-3">
+            확인 경로: Firebase 콘솔 → Firestore Database → 규칙 탭. 리포 루트의
+            <code className="mx-1 px-1 bg-stone-200 dark:bg-stone-800 rounded">firestore.rules</code>
+            내용을 붙여넣고 게시하세요.
+          </div>
+          <button
+            onClick={() => reload()}
+            className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700"
+          >
+            🔄 다시 시도
+          </button>
+        </div>
       </div>
     );
   }
