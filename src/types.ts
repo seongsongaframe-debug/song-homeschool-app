@@ -235,6 +235,7 @@ export type LedgerReason =
   | "streak_bonus"
   | "perfect_day"
   | "reward_purchase"
+  | "reward_refund"
   | "manual_adjust";
 
 export interface PointEntry {

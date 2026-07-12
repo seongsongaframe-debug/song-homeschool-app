@@ -4,7 +4,7 @@ import { StudentTabs } from "../components/StudentTabs";
 import { useRewards, usePurchases } from "../store/useRewards";
 import { usePoints } from "../store/usePoints";
 import { useAuth } from "../store/AuthContext";
-import type { Purchase, Reward } from "../types";
+import type { PointEntry, Purchase, Reward } from "../types";
 import { todayISO } from "../lib/dates";
 
 const KIND_LABEL: Record<Reward["kind"], string> = {
@@ -20,7 +20,8 @@ export default function Shop() {
   const [studentId, setStudentId] = useState(activeChildId ?? students[0]?.id ?? "");
   const { rewards } = useRewards();
   const { purchases, save: savePurchase } = usePurchases();
-  const { balance } = usePoints(studentId);
+  const { balance, ledger, append: appendPoint } = usePoints(studentId);
+  const [showLedger, setShowLedger] = useState(false);
 
   useEffect(() => {
     if (studentId && studentId !== activeChildId) setChild(studentId);
@@ -31,31 +32,63 @@ export default function Shop() {
     [purchases, studentId]
   );
   const pendingMine = myPurchases.filter((p) => p.status === "pending");
-  // 승인 대기 중인 구매도 잔고에서 미리 차감 (중복 요청 방지).
+  // 요청 즉시 포인트가 차감되므로 balance 자체가 이미 대기분을 반영한 실사용 가능액이다.
   const pendingTotal = pendingMine.reduce((s, p) => s + p.cost_points, 0);
-  const availableBalance = balance - pendingTotal;
 
   async function request(reward: Reward) {
-    if (reward.cost_points > availableBalance) {
+    // 한 아이템에 한 번만: 진행 중(대기·승인) 요청이 있으면 중복 차단.
+    const active = myPurchases.find(
+      (p) =>
+        p.reward_id === reward.id &&
+        (p.status === "pending" || p.status === "approved")
+    );
+    if (active) {
       alert(
-        `포인트가 부족해요!\n사용 가능: ${availableBalance}p (잔고 ${balance}p − 대기중 ${pendingTotal}p)\n필요: ${reward.cost_points}p`
+        `이미 요청한 상품이에요.\n"${reward.title}" 은(는) 진행 중인 요청이 있어요.\n취소하거나 수령한 뒤 다시 요청할 수 있어요.`
       );
       return;
     }
+    if (reward.cost_points > balance) {
+      alert(
+        `포인트가 부족해요!\n내 포인트: ${balance}p\n필요: ${reward.cost_points}p`
+      );
+      return;
+    }
+    const now = new Date().toISOString();
     const p: Purchase = {
       id: crypto.randomUUID(),
       student_id: studentId,
       reward_id: reward.id,
-      requestedAt: new Date().toISOString(),
+      requestedAt: now,
       status: "pending",
       cost_points: reward.cost_points,
     };
     await savePurchase(p);
+    // 요청과 동시에 통장에서 포인트 차감 (은행 출금처럼 바로 빠져나감).
+    await appendPoint({
+      student_id: studentId,
+      date: now.slice(0, 10),
+      delta: -reward.cost_points,
+      reason: "reward_purchase",
+      reward_id: reward.id,
+      note: `구매 요청 · ${reward.title}`,
+    });
   }
 
   async function cancel(p: Purchase) {
     if (p.status !== "pending") return;
-    await savePurchase({ ...p, status: "rejected", decidedAt: new Date().toISOString() });
+    const r = rewards.find((x) => x.id === p.reward_id);
+    const now = new Date().toISOString();
+    await savePurchase({ ...p, status: "rejected", decidedAt: now });
+    // 취소하면 차감했던 포인트를 그대로 환불 (통장에 다시 입금).
+    await appendPoint({
+      student_id: p.student_id,
+      date: now.slice(0, 10),
+      delta: p.cost_points,
+      reason: "reward_refund",
+      reward_id: p.reward_id,
+      note: `구매 취소 환불 · ${r?.title ?? ""}`.trim(),
+    });
   }
 
   if (!studentId) return null;
@@ -70,7 +103,7 @@ export default function Shop() {
       <header className="mb-4">
         <h1 className="text-2xl font-bold">🏪 보상 상점</h1>
         <p className="text-stone-500 dark:text-stone-400">
-          포인트로 교환하세요. 구매는 보호자 승인 후 확정됩니다.
+          포인트로 교환하세요. 요청하면 포인트가 바로 빠져나가고, 취소하면 다시 돌려받아요.
         </p>
       </header>
 
@@ -81,16 +114,24 @@ export default function Shop() {
       />
 
       <section className="card mb-4 text-center">
-        <div className="text-sm text-stone-500 dark:text-stone-400">내 포인트</div>
+        <div className="text-sm text-stone-500 dark:text-stone-400">내 포인트 (통장 잔액)</div>
         <div className="text-4xl font-extrabold text-brand-600 dark:text-brand-400">
           💰 {balance}p
         </div>
         {pendingTotal > 0 && (
           <div className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-            승인 대기 −{pendingTotal}p · 사용 가능 {availableBalance}p
+            승인 대기 {pendingMine.length}건 (−{pendingTotal}p 이미 출금됨 · 취소 시 환불)
           </div>
         )}
+        <button
+          className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700"
+          onClick={() => setShowLedger((v) => !v)}
+        >
+          📒 포인트 통장 {showLedger ? "닫기" : "보기"}
+        </button>
       </section>
+
+      {showLedger && <Passbook ledger={ledger} rewards={rewards} balance={balance} />}
 
       {pendingMine.length > 0 && (
         <section className="card mb-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
@@ -125,7 +166,12 @@ export default function Shop() {
         )}
         <div className="grid grid-cols-2 gap-3">
           {activeRewards.map((r) => {
-            const canAfford = availableBalance >= r.cost_points;
+            const alreadyRequested = myPurchases.some(
+              (p) =>
+                p.reward_id === r.id &&
+                (p.status === "pending" || p.status === "approved")
+            );
+            const canAfford = balance >= r.cost_points;
             return (
               <div key={r.id} className="card flex flex-col text-center">
                 {r.image_url ? (
@@ -154,11 +200,21 @@ export default function Shop() {
                 )}
                 <div className="font-bold text-lg mb-2">{r.cost_points}p</div>
                 <button
-                  className={canAfford ? "btn-primary" : "btn-ghost opacity-50"}
-                  disabled={!canAfford}
+                  className={
+                    alreadyRequested
+                      ? "btn-ghost opacity-60"
+                      : canAfford
+                      ? "btn-primary"
+                      : "btn-ghost opacity-50"
+                  }
+                  disabled={alreadyRequested || !canAfford}
                   onClick={() => request(r)}
                 >
-                  {canAfford ? "구매 요청" : "포인트 부족"}
+                  {alreadyRequested
+                    ? "요청됨"
+                    : canAfford
+                    ? "구매 요청"
+                    : "포인트 부족"}
                 </button>
               </div>
             );
@@ -188,6 +244,107 @@ export default function Shop() {
         </div>
       </section>
     </div>
+  );
+}
+
+const REASON_META: Record<
+  PointEntry["reason"],
+  { icon: string; label: string }
+> = {
+  quest_complete: { icon: "📘", label: "과제 완료" },
+  streak_bonus: { icon: "🔥", label: "연속 보너스" },
+  perfect_day: { icon: "⭐", label: "완벽한 하루" },
+  reward_purchase: { icon: "🛍️", label: "상품 구매" },
+  reward_refund: { icon: "↩️", label: "구매 취소 환불" },
+  manual_adjust: { icon: "✍️", label: "보호자 조정" },
+};
+
+// 은행 통장(거래내역)처럼 포인트 입출금을 시간순으로 보여준다.
+// 최신순 표시하되, 각 줄의 "잔액"은 그 거래 직후의 누적 잔액.
+function Passbook({
+  ledger,
+  rewards,
+  balance,
+}: {
+  ledger: PointEntry[];
+  rewards: Reward[];
+  balance: number;
+}) {
+  // 저장 순서(=시간순)를 신뢰. 앞에서부터 누적하며 각 거래 직후 잔액을 기록.
+  let running = 0;
+  const rows = ledger.map((e) => {
+    running += e.delta;
+    return { e, after: running };
+  });
+  rows.reverse(); // 최신순
+
+  const earned = ledger
+    .filter((e) => e.delta > 0)
+    .reduce((s, e) => s + e.delta, 0);
+  const spent = ledger
+    .filter((e) => e.delta < 0)
+    .reduce((s, e) => s + e.delta, 0);
+
+  function labelOf(e: PointEntry): string {
+    const meta = REASON_META[e.reason] ?? { icon: "•", label: e.reason };
+    if (e.note) return `${meta.icon} ${e.note}`;
+    if (e.reward_id) {
+      const r = rewards.find((x) => x.id === e.reward_id);
+      if (r) return `${meta.icon} ${meta.label} · ${r.title}`;
+    }
+    return `${meta.icon} ${meta.label}`;
+  }
+
+  return (
+    <section className="card mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-bold">📒 포인트 통장</h3>
+        <span className="text-xs text-stone-500 dark:text-stone-400">
+          총 {ledger.length}건
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+        <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 py-2">
+          <div className="text-[11px] text-stone-500 dark:text-stone-400">받은 포인트</div>
+          <div className="font-bold text-emerald-700 dark:text-emerald-400">+{earned}p</div>
+        </div>
+        <div className="rounded-xl bg-red-50 dark:bg-red-900/20 py-2">
+          <div className="text-[11px] text-stone-500 dark:text-stone-400">쓴 포인트</div>
+          <div className="font-bold text-red-600 dark:text-red-400">{spent}p</div>
+        </div>
+        <div className="rounded-xl bg-brand-50 dark:bg-stone-800 py-2">
+          <div className="text-[11px] text-stone-500 dark:text-stone-400">잔액</div>
+          <div className="font-bold text-brand-700 dark:text-brand-400">{balance}p</div>
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <div className="text-stone-400 text-center py-6 text-sm">아직 거래 내역이 없어요.</div>
+      ) : (
+        <div className="divide-y divide-stone-100 dark:divide-stone-800">
+          {rows.map((row, i) => (
+            <div key={row.e.id ?? i} className="flex items-center gap-2 py-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm truncate">{labelOf(row.e)}</div>
+                <div className="text-[11px] text-stone-400">{row.e.date}</div>
+              </div>
+              <div
+                className={`text-sm font-bold tabular-nums ${
+                  row.e.delta >= 0
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-red-500 dark:text-red-400"
+                }`}
+              >
+                {row.e.delta >= 0 ? "+" : ""}
+                {row.e.delta}p
+              </div>
+              <div className="text-xs text-stone-400 tabular-nums w-16 text-right">
+                {row.after}p
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

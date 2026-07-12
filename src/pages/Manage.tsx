@@ -95,46 +95,40 @@ export default function Manage() {
     setTimeout(() => setGrantToast(null), 3000);
   }
 
+  // 포인트는 아이가 "구매 요청"하는 순간 이미 차감(출금)되었으므로,
+  // 승인은 상태만 바꾼다 (여기서 다시 차감하면 이중 출금).
   async function approve(p: Purchase) {
-    const data =
-      (await storage.read<PointEntry[]>(KEYS.pointLedger(p.student_id))) ?? [];
-    const balance = data.reduce((s, e) => s + e.delta, 0);
-    if (balance < p.cost_points) {
-      const s = students.find((x) => x.id === p.student_id);
-      const ok = confirm(
-        `⚠️ 잔고 부족\n${s?.emoji ?? ""} ${s?.name ?? ""}\n` +
-          `현재 잔고: ${balance}p\n필요 포인트: ${p.cost_points}p\n` +
-          `부족분: ${p.cost_points - balance}p\n\n` +
-          `이대로 승인하면 잔고가 마이너스(${balance - p.cost_points}p)가 됩니다.\n` +
-          `정말 승인하시겠습니까?`
-      );
-      if (!ok) return;
-    }
     await savePurchase({
       ...p,
       status: "approved",
       decidedAt: new Date().toISOString(),
     });
+  }
+
+  // 거부하면 요청 시 차감했던 포인트를 환불한다.
+  async function reject(p: Purchase) {
+    if (p.status !== "pending") return;
+    await savePurchase({
+      ...p,
+      status: "rejected",
+      decidedAt: new Date().toISOString(),
+    });
+    const data =
+      (await storage.read<PointEntry[]>(KEYS.pointLedger(p.student_id))) ?? [];
+    const r = rewards.find((x) => x.id === p.reward_id);
     const next: PointEntry[] = [
       ...data,
       {
         id: crypto.randomUUID(),
         student_id: p.student_id,
         date: new Date().toISOString().slice(0, 10),
-        delta: -p.cost_points,
-        reason: "reward_purchase",
+        delta: p.cost_points,
+        reason: "reward_refund",
         reward_id: p.reward_id,
+        note: `구매 거부 환불 · ${r?.title ?? ""}`.trim(),
       },
     ];
     await storage.write(KEYS.pointLedger(p.student_id), next);
-  }
-
-  async function reject(p: Purchase) {
-    await savePurchase({
-      ...p,
-      status: "rejected",
-      decidedAt: new Date().toISOString(),
-    });
   }
 
   async function fulfill(p: Purchase) {
